@@ -1,0 +1,32 @@
+# Build outputs
+**/bin/
+**/obj/
+# Build
+BE/bin/
+BE/obj/
+
+
+
+# Rider
+.idea/
+
+# NuGet
+*.nupkg
+# User/IDE files
+.vs/
+.vscode/
+.agents/
+appsettings.Development.json
+*.user
+*.suo
+*.userprefs
+*.csproj.user
+
+# Logs
+*.log
+*.lscache
+skills-lock.json
+*.md
+!README.md
+
+
