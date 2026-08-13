@@ -52,7 +52,7 @@ export default function TournamentDetail({ t, onBack, setMessage, getTournamentR
     <div style={{padding:"20px 24px",borderRadius:16,border:"1px solid rgba(143,100,32,0.2)",background:"rgba(255,250,240,0.5)",marginBottom:20}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
         <div><h2 style={{margin:"0 0 4px",fontSize:24,color:"#172033"}}>{t.name??t.Name}</h2>
-          <p style={{margin:0,fontSize:13,color:"#657086"}}>{(t.venue??t.Venue)?"📍 "+(t.venue??t.Venue)+" · ":""}📅 {fmtDate2(t.startDate??t.StartDate)} → {fmtDate2(t.endDate??t.EndDate)}</p></div>
+          <p style={{ margin: 0, fontSize: 13, color: "#657086" }}>{(t.venue ?? t.Venue) ? (t.venue ?? t.Venue) + " · " : ""}{fmtDate2(t.startDate??t.StartDate)} → {fmtDate2(t.endDate??t.EndDate)}</p></div>
         <div style={{display:"flex",gap:8}}>
           <button className="primary-button" style={{padding:"6px 14px",fontSize:13}} onClick={()=>setShowRaceForm(true)}>+ Tạo cuộc đua</button>
         </div>
