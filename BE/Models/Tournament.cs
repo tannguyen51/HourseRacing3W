@@ -55,4 +55,5 @@ public class Tournament
 
     public ICollection<Round> Rounds { get; set; } = new List<Round>();
     public ICollection<Race> Races { get; set; } = new List<Race>();
+    public ICollection<TournamentTrack> TournamentTracks { get; set; } = new List<TournamentTrack>();
 }

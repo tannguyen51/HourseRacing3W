@@ -39,6 +39,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<BankAccount> BankAccounts => Set<BankAccount>();
     public DbSet<WithdrawalRequest> WithdrawalRequests => Set<WithdrawalRequest>();
     public DbSet<Track> Tracks => Set<Track>();
+    public DbSet<TournamentTrack> TournamentTracks => Set<TournamentTrack>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -102,6 +103,28 @@ public class ApplicationDbContext : DbContext
             .HasMany(t => t.Races)
             .WithOne(r => r.Tournament)
             .HasForeignKey(r => r.TournamentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<TournamentTrack>()
+            .HasIndex(x => new { x.TournamentId, x.TrackId })
+            .IsUnique();
+
+        modelBuilder.Entity<TournamentTrack>()
+            .HasOne(x => x.Tournament)
+            .WithMany(t => t.TournamentTracks)
+            .HasForeignKey(x => x.TournamentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<TournamentTrack>()
+            .HasOne(x => x.Track)
+            .WithMany(t => t.TournamentTracks)
+            .HasForeignKey(x => x.TrackId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Race>()
+            .HasOne(r => r.Track)
+            .WithMany(t => t.Races)
+            .HasForeignKey(r => r.TrackId)
             .OnDelete(DeleteBehavior.Restrict);
 
         modelBuilder.Entity<Race>()
