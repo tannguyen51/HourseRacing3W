@@ -46,6 +46,7 @@ import HorseManagementPage from "./pages/HorseManagementPage";
 import RefereeManagementPage from "./pages/RefereeManagementPage";
 import TournamentDetail from "./pages/TournamentDetail";
 import PredictionsManagementPage from "./pages/PredictionsManagementPage";
+import TrackManagementPage from "./pages/TrackManagementPage";
 import "./AdminPage.css";
 
 function AdminHorseImage({ imageUrl, name, className = "" }) {
@@ -84,6 +85,7 @@ const navGroups = [
   ] },
   { label: "Tournaments", items: [
     { to: "/admin/tournaments", label: "Giải đấu", icon: "M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" },
+    { to: "/admin/tracks", label: "Sân đấu", icon: "M4 6h16v12H4zM8 6v12m8-12v12" },
     { to: "/admin/rounds", label: "Vòng đấu", icon: "M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" },
     { to: "/admin/races", label: "Cuộc đua", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
     { to: "/admin/race-results", label: "Kết quả", icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" },
@@ -1493,6 +1495,7 @@ function AdminPage() {
   else if (location.pathname.startsWith("/admin/users/")) content = <UserDetail />;
   else if (location.pathname === "/admin/roles") content = <Roles />;
   else if (location.pathname === "/admin/tournaments") content = <TournamentManagement />;
+  else if (location.pathname === "/admin/tracks") content = <TrackManagementPage />;
   else if (location.pathname === "/admin/race-results") content = <RaceResultsPage />;
   else if (location.pathname === "/admin/horses") content = <HorseManagementPage />;
   else if (location.pathname === "/admin/referees") content = <RefereeManagementPage />;

@@ -10,7 +10,6 @@ function TournamentForm({ onClose, onSuccess }) {
   const [error, setError] = useState("");
   const [tracks, setTracks] = useState([]);
   const [trackSlots, setTrackSlots] = useState([{ trackId: "", availableFrom: "", availableTo: "" }]);
-  const [newTrackName, setNewTrackName] = useState("");
   const [form, setForm] = useState({
     name: "",
     description: "",
@@ -37,19 +36,6 @@ function TournamentForm({ onClose, onSuccess }) {
   const updateTrackSlot = (index, field, value) =>
     setTrackSlots(prev => prev.map((slot, i) => i === index ? { ...slot, [field]: value } : slot));
 
-  const createTrack = async () => {
-    if (!newTrackName.trim()) return;
-    try {
-      const res = await request("/api/tracks", {
-        method: "POST", body: JSON.stringify({ name: newTrackName.trim() }),
-      });
-      const created = res?.data ?? res;
-      await loadTracks();
-      updateTrackSlot(trackSlots.length - 1, "trackId", created?.id ?? created?.Id ?? "");
-      setNewTrackName("");
-    } catch (err) { setError(err.message || "Không thể tạo sân đấu"); }
-  };
-
   const handleUpload = async (file) => {
     if (!file) return;
     setUploading(true);
@@ -73,6 +59,8 @@ function TournamentForm({ onClose, onSuccess }) {
     try {
       if (trackSlots.some(x => !x.trackId || !x.availableFrom || !x.availableTo))
         throw new Error("Vui lòng chọn sân đấu và đầy đủ ngày giờ sử dụng.");
+      if (new Set(trackSlots.map(x => x.trackId)).size !== trackSlots.length)
+        throw new Error("Mỗi sân đấu chỉ được chọn một lần trong giải.");
       if (trackSlots.some(x => new Date(x.availableFrom) >= new Date(x.availableTo)))
         throw new Error("Giờ kết thúc sử dụng sân phải sau giờ bắt đầu.");
       const payload = {
@@ -129,10 +117,7 @@ function TournamentForm({ onClose, onSuccess }) {
               </div>
             ))}
             <button type="button" onClick={() => setTrackSlots(prev => [...prev,{trackId:"",availableFrom:"",availableTo:""}])} style={{border:0,background:"transparent",color:"#8f6420",fontWeight:600,cursor:"pointer"}}>+ Thêm sân vào giải</button>
-            <div style={{display:"flex",gap:8,marginTop:10}}>
-              <input value={newTrackName} onChange={e=>setNewTrackName(e.target.value)} placeholder="Tên sân đấu mới" style={{flex:1,padding:10,borderRadius:8,border:"1px solid #d7c8aa"}} />
-              <button type="button" onClick={createTrack} style={{padding:"8px 14px",borderRadius:8,border:0,background:"#8f6420",color:"white",cursor:"pointer"}}>Tạo sân</button>
-            </div>
+            {tracks.length === 0 && <p style={{fontSize:12,color:"#dc2626",margin:"8px 0 0"}}>Chưa có sân đấu. Vui lòng tạo sân tại mục Quản lý sân đấu trước.</p>}
           </div>
           <Input label="Tổng tiền thưởng (VND)" type="number" value={form.prizePool} onChange={(e) => updateForm("prizePool", e.target.value)} placeholder="100000000" min="0" />
           <div style={{marginBottom:16}}>
