@@ -793,7 +793,7 @@ function TournamentManagement() {
   const [message, setMessage] = useState("");
   const [uploading, setUploading] = useState(false);
   const [selectedT, setSelectedT] = useState(null);
-  const [form, setForm] = useState({ name: "", description: "", venue: "", startDate: inputDate(7), endDate: inputDate(14), prizePool: 0, imageUrl: "" });
+  const [form, setForm] = useState({ name: "", description: "", venue: "", startDate: inputDate(7), endDate: inputDate(14), prizePool: 0, imageUrl: "", registrationDeadline: "" });
   const load = () => getAdminTournaments().then((data) => setItems(Array.isArray(data) ? data : [])).catch((err) => setMessage(err.message));
   useEffect(() => {
     load();
@@ -817,7 +817,7 @@ function TournamentManagement() {
   const submit = async (event) => {
     event.preventDefault();
     try {
-      const payload = { ...form, startDate: new Date(form.startDate).toISOString(), endDate: new Date(form.endDate).toISOString() };
+      const payload = { ...form, startDate: new Date(form.startDate).toISOString(), endDate: new Date(form.endDate).toISOString(), registrationDeadline: form.registrationDeadline ? new Date(form.registrationDeadline).toISOString() : null, prizePool: Number(form.prizePool) };
       if (editingId) await updateTournament(editingId, payload);
       else await createTournament(payload);
       setMessage(`Giải đấu ${editingId ? "đã cập nhật" : "đã tạo"} thành công.`);
@@ -826,6 +826,7 @@ function TournamentManagement() {
   };
   const edit = (item) => {
     const toLocalInput = (value) => {
+      if (!value) return "";
       const date = new Date(value);
       return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     };
@@ -833,8 +834,11 @@ function TournamentManagement() {
     setForm({
       name: item.name ?? item.Name ?? "",
       description: item.description ?? item.Description ?? "",
+      venue: item.venue ?? item.Venue ?? "",
       startDate: toLocalInput(item.startDate ?? item.StartDate),
       endDate: toLocalInput(item.endDate ?? item.EndDate),
+      registrationDeadline: toLocalInput(item.registrationDeadline ?? item.RegistrationDeadline),
+      prizePool: item.prizePool ?? item.PrizePool ?? 0,
       imageUrl: item.imageUrl ?? item.ImageUrl ?? "",
     });
     setShowForm(true);
@@ -877,8 +881,23 @@ function TournamentManagement() {
       {showForm && editingId && <form className="admin-form" onSubmit={submit}>
         <input placeholder="Tên giải đấu" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
         <input placeholder="Mô tả" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-        <input type="datetime-local" required value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} min={inputDate(0)} />
-        <input type="datetime-local" required value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} min={inputDate(0)} />
+        <input placeholder="Sân đấu / Địa điểm" value={form.venue} onChange={(e) => setForm({ ...form, venue: e.target.value })} />
+        <label style={{ fontSize: 13, color: "#657086", display: "flex", flexDirection: "column", gap: 4 }}>
+          Ngày bắt đầu:
+          <input type="datetime-local" required value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
+        </label>
+        <label style={{ fontSize: 13, color: "#657086", display: "flex", flexDirection: "column", gap: 4 }}>
+          Ngày kết thúc:
+          <input type="datetime-local" required value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} />
+        </label>
+        <label style={{ fontSize: 13, color: "#657086", display: "flex", flexDirection: "column", gap: 4 }}>
+          Hạn đăng ký:
+          <input type="datetime-local" value={form.registrationDeadline} onChange={(e) => setForm({ ...form, registrationDeadline: e.target.value })} />
+        </label>
+        <label style={{ fontSize: 13, color: "#657086", display: "flex", flexDirection: "column", gap: 4 }}>
+          Tổng giải thưởng (VND):
+          <input type="number" placeholder="Giải thưởng" value={form.prizePool} onChange={(e) => setForm({ ...form, prizePool: e.target.value })} />
+        </label>
         <label style={{ fontSize: 13, color: "#657086" }}>Ảnh bìa giải đấu (tỉ lệ 3:1, đề xuất 1200×400px):
           <input type="file" accept="image/*" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} style={{ display: "block", marginTop: 4 }} />
           {uploading ? <span style={{ color: "#8f6420", fontSize: 12 }}>Đang tải ảnh...</span> : null}
