@@ -19,7 +19,6 @@ function TournamentWizard({ onClose, onSuccess }) {
     return {
       name: "",
       description: "",
-      venue: "",
       category: "",
       imageUrl: "",
       startDate: startDate.toISOString().slice(0, 16),
@@ -127,7 +126,6 @@ function TournamentWizard({ onClose, onSuccess }) {
       const payload = {
         name: form.name,
         description: form.description,
-        venue: form.venue,
         category: form.category,
         imageUrl: form.imageUrl,
         startDate: new Date(form.startDate).toISOString(),
@@ -250,22 +248,7 @@ function TournamentWizard({ onClose, onSuccess }) {
               </p>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-              <div>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#34415b" }}>
-                  Địa điểm
-                </label>
-                <input
-                  type="text"
-                  value={form.venue}
-                  onChange={(e) => updateForm("venue", e.target.value)}
-                  placeholder="VD: Hà Nội"
-                  style={{
-                    width: "100%", padding: 12, borderRadius: 8,
-                    border: "1px solid rgba(143,100,32,0.2)", fontSize: 14
-                  }}
-                />
-              </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16, marginBottom: 16 }}>
               <div>
                 <label style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "#34415b" }}>
                   Hạng giải
@@ -410,7 +393,7 @@ function TournamentWizard({ onClose, onSuccess }) {
                   </h4>
                   <p style={{ margin: "0 0 8px", fontSize: 13, color: "#657086" }}>
                     {form.venue && `📍 ${form.venue} · `}
-                    📅 {new Date(form.startDate).toLocaleDateString("vi-VN")} → {new Date(form.endDate).toLocaleDateString("vi-VN")}
+                    {new Date(form.startDate).toLocaleDateString("vi-VN")} → {new Date(form.endDate).toLocaleDateString("vi-VN")}
                   </p>
                   <p style={{ margin: 0, fontSize: 13, color: "#657086" }}>
                     0 cuộc đua · 0 đăng ký · {form.prizePool.toLocaleString("vi-VN")} VNĐ

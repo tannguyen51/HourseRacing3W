@@ -77,7 +77,6 @@ public class TournamentService : ITournamentService
                 EndDate = request.EndDate,
                 RegistrationDeadline = request.RegistrationDeadline,
                 ImageUrl = request.ImageUrl,
-                Venue = request.Venue,
                 PrizePool = request.PrizePool ?? 0,
                 Status = TournamentStatus.Draft,
                 IsActive = false, // Will be true when Published
@@ -219,10 +218,34 @@ public class TournamentService : ITournamentService
                 tournament.IsActive = request.IsActive.Value;
             if (request.ImageUrl != null)
                 tournament.ImageUrl = request.ImageUrl;
-            if (request.Venue != null)
-                tournament.Venue = request.Venue;
             if (request.PrizePool.HasValue)
                 tournament.PrizePool = request.PrizePool.Value;
+
+            if (request.Tracks != null)
+            {
+                if (request.Tracks.Count == 0)
+                    return ServiceResult<TournamentResponse>.Fail(400, "Vui lòng thêm ít nhất một sân đấu cho giải.");
+                if (request.Tracks.GroupBy(x => x.TrackId).Any(g => g.Count() > 1))
+                    return ServiceResult<TournamentResponse>.Fail(400, "Một sân đấu chỉ được thêm một lần vào giải.");
+                if (request.Tracks.Any(x => x.AvailableFrom >= x.AvailableTo || x.AvailableFrom < tournament.StartDate || x.AvailableTo > tournament.EndDate))
+                    return ServiceResult<TournamentResponse>.Fail(400, "Khung giờ của sân phải nằm trong thời gian diễn ra giải.");
+                var trackIds = request.Tracks.Select(x => x.TrackId).ToList();
+                if (await _db.Tracks.CountAsync(x => trackIds.Contains(x.Id)) != trackIds.Count)
+                    return ServiceResult<TournamentResponse>.Fail(400, "Có sân đấu không tồn tại.");
+
+                await _db.TournamentTracks.Where(x => x.TournamentId == id).ExecuteDeleteAsync();
+                foreach (var item in request.Tracks)
+                {
+                    _db.TournamentTracks.Add(new TournamentTrack
+                    {
+                        Id = Guid.NewGuid(),
+                        TournamentId = id,
+                        TrackId = item.TrackId,
+                        AvailableFrom = item.AvailableFrom,
+                        AvailableTo = item.AvailableTo
+                    });
+                }
+            }
 
             tournament.UpdatedAt = DateTime.UtcNow;
 
@@ -535,7 +558,6 @@ public class TournamentService : ITournamentService
             RoundCount = tournament.Rounds?.Count ?? 0,
             RaceCount = stats.RaceCount,
             ImageUrl = tournament.ImageUrl,
-            Venue = tournament.Venue,
             PrizePool = tournament.PrizePool,
             CreatedAt = tournament.CreatedAt,
             UpdatedAt = tournament.UpdatedAt,
@@ -565,7 +587,6 @@ public class TournamentService : ITournamentService
             RoundCount = tournament.Rounds?.Count ?? 0,
             RaceCount = tournament.Races?.Count ?? 0,
             ImageUrl = tournament.ImageUrl,
-            Venue = tournament.Venue,
             PrizePool = tournament.PrizePool,
             CreatedAt = tournament.CreatedAt,
             UpdatedAt = tournament.UpdatedAt,
