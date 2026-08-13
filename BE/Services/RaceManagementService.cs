@@ -79,6 +79,9 @@ public class RaceManagementService : IRaceManagementService
                 request.ScheduledAt, request.ScheduledEndAt, null);
             if (scheduleError != null)
                 return ServiceResult<RaceDetailResponse>.Fail(400, scheduleError);
+            var trackCapacity = await _db.Tracks.Where(x => x.Id == request.TrackId).Select(x => x.MaxHorses).FirstAsync();
+            if (request.MaxParticipants > trackCapacity)
+                return ServiceResult<RaceDetailResponse>.Fail(400, $"Sân đấu chỉ cho phép tối đa {trackCapacity} ngựa.");
 
             var race = new Race
             {
@@ -145,6 +148,10 @@ public class RaceManagementService : IRaceManagementService
                 proposedStart, proposedEnd, race.Id);
             if (scheduleError != null)
                 return ServiceResult<RaceDetailResponse>.Fail(400, scheduleError);
+            var proposedMaxParticipants = request.MaxParticipants ?? race.MaxParticipants;
+            var trackCapacity = await _db.Tracks.Where(x => x.Id == proposedTrackId).Select(x => x.MaxHorses).FirstAsync();
+            if (proposedMaxParticipants > trackCapacity)
+                return ServiceResult<RaceDetailResponse>.Fail(400, $"Sân đấu chỉ cho phép tối đa {trackCapacity} ngựa.");
 
             if (!string.IsNullOrEmpty(request.Name))
                 race.Name = request.Name;
