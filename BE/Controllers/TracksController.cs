@@ -25,7 +25,7 @@ public class TracksController : ControllerBase
     public async Task<ActionResult> GetAll()
     {
         var tracks = await _db.Tracks.OrderBy(t => t.Name).ToListAsync();
-        return Ok(new { success = true, data = tracks.Select(t => new { t.Id, t.Name, t.Description, t.Length, t.CreatedAt }) });
+        return Ok(new { success = true, data = tracks.Select(t => new { t.Id, t.Name, t.Description, t.Length, t.Location, t.MaxHorses, t.Surface, t.Facilities, t.CreatedAt }) });
     }
 
     [HttpPost]
@@ -34,6 +34,8 @@ public class TracksController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Name))
             return BadRequest(new { success = false, message = "Tên đường đua không được để trống." });
+        if (request.MaxHorses < 2 || request.MaxHorses > 30)
+            return BadRequest(new { success = false, message = "Sức chứa sân phải từ 2 đến 30 ngựa." });
 
         var track = new Track
         {
@@ -41,13 +43,17 @@ public class TracksController : ControllerBase
             Name = request.Name.Trim(),
             Description = request.Description?.Trim(),
             Length = request.Length,
+            Location = request.Location?.Trim(),
+            MaxHorses = request.MaxHorses,
+            Surface = request.Surface?.Trim(),
+            Facilities = request.Facilities?.Trim(),
             CreatedAt = DateTime.UtcNow
         };
 
         _db.Tracks.Add(track);
         await _db.SaveChangesAsync();
 
-        return Ok(new { success = true, data = new { track.Id, track.Name, track.Description, track.Length, track.CreatedAt } });
+        return Ok(new { success = true, data = new { track.Id, track.Name, track.Description, track.Length, track.Location, track.MaxHorses, track.Surface, track.Facilities, track.CreatedAt } });
     }
 
     [HttpPut("{id:guid}")]
@@ -58,12 +64,18 @@ public class TracksController : ControllerBase
         if (track == null) return NotFound(new { success = false, message = "Không tìm thấy sân đấu." });
         if (string.IsNullOrWhiteSpace(request.Name))
             return BadRequest(new { success = false, message = "Tên sân đấu không được để trống." });
+        if (request.MaxHorses < 2 || request.MaxHorses > 30)
+            return BadRequest(new { success = false, message = "Sức chứa sân phải từ 2 đến 30 ngựa." });
 
         track.Name = request.Name.Trim();
         track.Description = request.Description?.Trim();
         track.Length = request.Length;
+        track.Location = request.Location?.Trim();
+        track.MaxHorses = request.MaxHorses;
+        track.Surface = request.Surface?.Trim();
+        track.Facilities = request.Facilities?.Trim();
         await _db.SaveChangesAsync();
-        return Ok(new { success = true, data = new { track.Id, track.Name, track.Description, track.Length, track.CreatedAt } });
+        return Ok(new { success = true, data = new { track.Id, track.Name, track.Description, track.Length, track.Location, track.MaxHorses, track.Surface, track.Facilities, track.CreatedAt } });
     }
 
     [HttpDelete("{id:guid}")]
@@ -87,4 +99,8 @@ public class CreateTrackRequest
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public int? Length { get; set; }
+    public string? Location { get; set; }
+    public int MaxHorses { get; set; } = 12;
+    public string? Surface { get; set; }
+    public string? Facilities { get; set; }
 }
