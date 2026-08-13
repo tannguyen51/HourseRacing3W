@@ -55,6 +55,19 @@ public class TournamentService : ITournamentService
     {
         try
         {
+            if (request.StartDate >= request.EndDate)
+                return ServiceResult<TournamentResponse>.Fail(400, "Thời gian kết thúc giải phải sau thời gian bắt đầu.");
+            if (request.Tracks.Count == 0)
+                return ServiceResult<TournamentResponse>.Fail(400, "Vui lòng thêm ít nhất một sân đấu cho giải.");
+            if (request.Tracks.GroupBy(x => x.TrackId).Any(g => g.Count() > 1))
+                return ServiceResult<TournamentResponse>.Fail(400, "Một sân đấu chỉ được thêm một lần vào giải.");
+            if (request.Tracks.Any(x => x.AvailableFrom >= x.AvailableTo || x.AvailableFrom < request.StartDate || x.AvailableTo > request.EndDate))
+                return ServiceResult<TournamentResponse>.Fail(400, "Khung giờ của sân phải nằm trong thời gian diễn ra giải.");
+
+            var trackIds = request.Tracks.Select(x => x.TrackId).ToList();
+            if (await _db.Tracks.CountAsync(x => trackIds.Contains(x.Id)) != trackIds.Count)
+                return ServiceResult<TournamentResponse>.Fail(400, "Có sân đấu không tồn tại.");
+
             var tournament = new Tournament
             {
                 Id = Guid.NewGuid(),
@@ -70,6 +83,13 @@ public class TournamentService : ITournamentService
                 IsActive = false, // Will be true when Published
                 CreatedAt = DateTime.UtcNow
             };
+
+            foreach (var item in request.Tracks)
+                tournament.TournamentTracks.Add(new TournamentTrack
+                {
+                    Id = Guid.NewGuid(), TrackId = item.TrackId,
+                    AvailableFrom = item.AvailableFrom, AvailableTo = item.AvailableTo
+                });
 
             await _tournamentRepo.AddAsync(tournament);
             await _unitOfWork.SaveChangesAsync();
@@ -496,6 +516,13 @@ public class TournamentService : ITournamentService
     {
         var stats = await CalculateStatsAsync(tournament);
         var nextTransitions = GetNextTransitions(tournament.Status);
+        var tracks = await _db.TournamentTracks.Where(x => x.TournamentId == tournament.Id)
+            .Include(x => x.Track).OrderBy(x => x.AvailableFrom)
+            .Select(x => new TournamentTrackDto
+            {
+                TrackId = x.TrackId, TrackName = x.Track!.Name,
+                AvailableFrom = x.AvailableFrom, AvailableTo = x.AvailableTo
+            }).ToListAsync();
 
         return new TournamentResponse
         {
@@ -520,7 +547,8 @@ public class TournamentService : ITournamentService
             FinishedAt = tournament.FinishedAt,
             CancelledAt = tournament.CancelledAt,
             Stats = stats,
-            NextTransitions = nextTransitions
+            NextTransitions = nextTransitions,
+            Tracks = tracks
         };
     }
 

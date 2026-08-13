@@ -10,6 +10,14 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace HorseRacing.Controllers;
 
+/// <summary>
+/// Cung cấp các API quản trị hệ thống dành riêng cho người dùng có vai trò Admin.
+/// </summary>
+/// <remarks>
+/// Controller tiếp nhận yêu cầu quản lý người dùng, hồ sơ đăng ký, ngựa, nài ngựa,
+/// kết quả cuộc đua và đơn đăng ký tham gia đua; phần lớn nghiệp vụ được chuyển tiếp
+/// đến các service tương ứng.
+/// </remarks>
 [ApiController]
 [Route("api/admin")]
 [Authorize(Roles = "Admin")]
@@ -19,6 +27,9 @@ public class AdminController : ControllerBase
     private readonly IRaceEntryRepository _entryRepo;
     private readonly IRaceEntryService _raceEntryService;
 
+    /// <summary>
+    /// Khởi tạo controller với các thành phần xử lý nghiệp vụ và truy xuất đơn đăng ký đua.
+    /// </summary>
     public AdminController(IAdminService adminService, IRaceEntryRepository entryRepo, IRaceEntryService raceEntryService)
     {
         _adminService = adminService;
@@ -27,6 +38,7 @@ public class AdminController : ControllerBase
     }
 
     // Dashboard
+    /// <summary>Lấy dữ liệu tổng quan cho dashboard quản trị.</summary>
     [HttpGet("dashboard")]
     public async Task<ActionResult> GetDashboard()
     {
@@ -35,6 +47,7 @@ public class AdminController : ControllerBase
     }
 
     // User Management
+    /// <summary>Lấy danh sách tất cả người dùng trong hệ thống.</summary>
     [HttpGet("users")]
     public async Task<ActionResult> GetAllUsers()
     {
@@ -42,6 +55,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Lấy thông tin chi tiết của một người dùng.</summary>
     [HttpGet("users/{userId:guid}")]
     public async Task<ActionResult> GetUser(Guid userId)
     {
@@ -49,6 +63,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Vô hiệu hóa tài khoản người dùng.</summary>
     [HttpPost("users/{userId:guid}/deactivate")]
     public async Task<ActionResult> DeactivateUser(Guid userId)
     {
@@ -56,6 +71,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Kích hoạt lại tài khoản người dùng đã bị vô hiệu hóa.</summary>
     [HttpPost("users/{userId:guid}/reactivate")]
     public async Task<ActionResult> ReactivateUser(Guid userId)
     {
@@ -64,6 +80,7 @@ public class AdminController : ControllerBase
     }
 
     // User Registration Management
+    /// <summary>Lấy tất cả hồ sơ đăng ký tài khoản cần quản trị.</summary>
     [HttpGet("registrations")]
     public async Task<ActionResult> GetAllRegistrations()
     {
@@ -71,6 +88,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Lấy các hồ sơ đăng ký đang chờ duyệt.</summary>
     [HttpGet("registrations/pending")]
     public async Task<ActionResult> GetPendingRegistrations()
     {
@@ -78,6 +96,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Lấy chi tiết một hồ sơ đăng ký.</summary>
     [HttpGet("registrations/{id:guid}")]
     public async Task<ActionResult> GetRegistration(Guid id)
     {
@@ -85,6 +104,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Phê duyệt hồ sơ đăng ký.</summary>
     [HttpPost("registrations/{id:guid}/approve")]
     public async Task<ActionResult> ApproveRegistration(Guid id, [FromBody] ApproveRegistrationRequest request)
     {
@@ -93,6 +113,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Từ chối hồ sơ đăng ký.</summary>
     [HttpPost("registrations/{id:guid}/reject")]
     public async Task<ActionResult> RejectRegistration(Guid id, [FromBody] RejectRegistrationRequest request)
     {
@@ -102,6 +123,7 @@ public class AdminController : ControllerBase
     }
 
     // Horse Management
+    /// <summary>Lấy danh sách ngựa thuộc sở hữu của một người dùng.</summary>
     [HttpGet("users/{userId:guid}/horses")]
     public async Task<ActionResult> GetOwnerHorses(Guid userId)
     {
@@ -109,6 +131,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Lấy chi tiết một ngựa và xác nhận ngựa thuộc đúng chủ sở hữu.</summary>
     [HttpGet("users/{userId:guid}/horses/{horseId:guid}")]
     public async Task<ActionResult> GetOwnerHorse(Guid userId, Guid horseId)
     {
@@ -116,6 +139,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Cập nhật trạng thái phê duyệt của ngựa.</summary>
     [HttpPut("users/{userId:guid}/horses/{horseId:guid}/status")]
     public async Task<ActionResult> UpdateOwnerHorseStatus(
         Guid userId,
@@ -127,6 +151,7 @@ public class AdminController : ControllerBase
     }
 
     // Jockey Management
+    /// <summary>Phê duyệt hồ sơ nài ngựa.</summary>
     [HttpPost("jockeys/{jockeyId:guid}/approve")]
     public async Task<ActionResult> ApproveJockey(Guid jockeyId)
     {
@@ -134,6 +159,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Từ chối hồ sơ nài ngựa kèm lý do.</summary>
     [HttpPost("jockeys/{jockeyId:guid}/reject")]
     public async Task<ActionResult> RejectJockey(Guid jockeyId, [FromBody] RejectJockeyRequest request)
     {
@@ -145,6 +171,7 @@ public class AdminController : ControllerBase
     }
 
     // Operations
+    /// <summary>Phê duyệt kết quả của một cuộc đua.</summary>
     [HttpPost("races/{raceId:guid}/approve-result")]
     public async Task<ActionResult> ApproveRaceResult(Guid raceId)
     {
@@ -152,6 +179,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Từ chối kết quả cuộc đua và ghi nhận lý do.</summary>
     [HttpPost("races/{raceId:guid}/reject-result")]
     public async Task<ActionResult> RejectRaceResult(Guid raceId, [FromBody] RejectResultRequest request)
     {
@@ -161,6 +189,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Lấy danh sách dự đoán kết quả đua để quản trị.</summary>
     [HttpGet("predictions")]
     public async Task<ActionResult> GetPredictions()
     {
@@ -169,6 +198,7 @@ public class AdminController : ControllerBase
     }
 
     // Race Entry Management
+    /// <summary>Lấy các đơn đăng ký tham gia đua đang chờ duyệt cùng thông tin liên quan.</summary>
     [HttpGet("race-entries/pending")]
     public async Task<ActionResult> GetPendingRaceEntries()
     {
@@ -190,6 +220,7 @@ public class AdminController : ControllerBase
         return Ok(ApiResult<object>.Ok(result));
     }
 
+    /// <summary>Phê duyệt một đơn đăng ký tham gia đua.</summary>
     [HttpPost("race-entries/{entryId:guid}/approve")]
     public async Task<ActionResult> ApproveRaceEntry(Guid entryId)
     {
@@ -197,6 +228,7 @@ public class AdminController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    /// <summary>Từ chối một đơn đăng ký tham gia đua.</summary>
     [HttpPost("race-entries/{entryId:guid}/reject")]
     public async Task<ActionResult> RejectRaceEntry(Guid entryId, [FromBody] EntryRejectRequest request)
     {
@@ -205,4 +237,9 @@ public class AdminController : ControllerBase
     }
 }
 
-public class EntryRejectRequest { public string? Reason { get; set; } }
+/// <summary>Dữ liệu lý do từ chối đơn đăng ký tham gia đua.</summary>
+public class EntryRejectRequest
+{
+    /// <summary>Lý do từ chối; có thể để trống nếu nghiệp vụ cho phép.</summary>
+    public string? Reason { get; set; }
+}

@@ -75,6 +75,14 @@ public class RaceManagementService : IRaceManagementService
                 return ServiceResult<RaceDetailResponse>.Error("Không tìm thấy giải đấu", 404);
             }
 
+            var scheduleError = await ValidateTrackScheduleAsync(request.TournamentId, request.TrackId,
+                request.ScheduledAt, request.ScheduledEndAt, null);
+            if (scheduleError != null)
+                return ServiceResult<RaceDetailResponse>.Fail(400, scheduleError);
+            var trackCapacity = await _db.Tracks.Where(x => x.Id == request.TrackId).Select(x => x.MaxHorses).FirstAsync();
+            if (request.MaxParticipants > trackCapacity)
+                return ServiceResult<RaceDetailResponse>.Fail(400, $"Sân đấu chỉ cho phép tối đa {trackCapacity} ngựa.");
+
             var race = new Race
             {
                 Id = Guid.NewGuid(),
@@ -132,6 +140,18 @@ public class RaceManagementService : IRaceManagementService
             {
                 return ServiceResult<RaceDetailResponse>.Fail(404, "Không tìm thấy cuộc đua");
             }
+
+            var proposedStart = request.ScheduledAt ?? race.ScheduledAt;
+            var proposedEnd = request.ScheduledEndAt ?? race.ScheduledEndAt;
+            var proposedTrackId = request.TrackId ?? race.TrackId;
+            var scheduleError = await ValidateTrackScheduleAsync(race.TournamentId, proposedTrackId,
+                proposedStart, proposedEnd, race.Id);
+            if (scheduleError != null)
+                return ServiceResult<RaceDetailResponse>.Fail(400, scheduleError);
+            var proposedMaxParticipants = request.MaxParticipants ?? race.MaxParticipants;
+            var trackCapacity = await _db.Tracks.Where(x => x.Id == proposedTrackId).Select(x => x.MaxHorses).FirstAsync();
+            if (proposedMaxParticipants > trackCapacity)
+                return ServiceResult<RaceDetailResponse>.Fail(400, $"Sân đấu chỉ cho phép tối đa {trackCapacity} ngựa.");
 
             if (!string.IsNullOrEmpty(request.Name))
                 race.Name = request.Name;
@@ -705,6 +725,28 @@ public class RaceManagementService : IRaceManagementService
         {
             return ServiceResult<bool>.Fail(500, "Không thể giải phóng ngựa. Vui lòng thử lại.");
         }
+    }
+
+    private async Task<string?> ValidateTrackScheduleAsync(Guid tournamentId, Guid? trackId,
+        DateTime scheduledAt, DateTime? scheduledEndAt, Guid? excludedRaceId)
+    {
+        if (!trackId.HasValue)
+            return "Vui lòng chọn sân đấu.";
+        if (!scheduledEndAt.HasValue || scheduledEndAt.Value <= scheduledAt)
+            return "Thời gian kết thúc cuộc đua phải sau thời gian bắt đầu.";
+
+        var assignment = await _db.TournamentTracks.AsNoTracking().FirstOrDefaultAsync(x =>
+            x.TournamentId == tournamentId && x.TrackId == trackId.Value);
+        if (assignment == null)
+            return "Sân đấu chưa được thêm vào giải đấu này.";
+        if (scheduledAt < assignment.AvailableFrom || scheduledEndAt > assignment.AvailableTo)
+            return "Lịch cuộc đua phải nằm trong khung ngày giờ đã chọn cho sân đấu.";
+
+        var overlaps = await _db.Races.AsNoTracking().AnyAsync(r =>
+            r.TrackId == trackId && r.Id != excludedRaceId && r.Status != RaceStatus.Cancelled &&
+            r.ScheduledAt < scheduledEndAt.Value &&
+            (r.ScheduledEndAt ?? r.ScheduledAt.AddHours(1)) > scheduledAt);
+        return overlaps ? "Sân đấu đã có cuộc đua khác trong khung giờ này." : null;
     }
 
     private RaceDetailResponse MapToDetailResponse(Race race)

@@ -19,5 +19,19 @@ public class Track
 
     public int? Length { get; set; } // meters
 
+    [MaxLength(300)]
+    public string? Location { get; set; }
+
+    public int MaxHorses { get; set; } = 12;
+
+    [MaxLength(100)]
+    public string? Surface { get; set; }
+
+    [MaxLength(500)]
+    public string? Facilities { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public ICollection<TournamentTrack> TournamentTracks { get; set; } = new List<TournamentTrack>();
+    public ICollection<Race> Races { get; set; } = new List<Race>();
 }
