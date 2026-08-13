@@ -88,33 +88,6 @@ function TournamentDetailPage() {
       {/* State Stepper */}
       <StateStepper currentStatus={status} />
 
-      {/* Next Transitions (Admin only) */}
-      {nextTransitions.length > 0 && (
-        <div style={{ marginBottom: 24, padding: 16, borderRadius: 12, background: "rgba(143,100,32,0.05)" }}>
-          <p style={{ margin: "0 0 12px", fontSize: 13, color: "#657086", fontWeight: 600 }}>Hành động có thể thực hiện:</p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {nextTransitions.map((trans) => (
-              <button
-                key={trans.status ?? trans.Status}
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 8,
-                  border: trans.isPrimary ?? trans.IsPrimary ? "2px solid #8f6420" : "1px solid rgba(143,100,32,0.2)",
-                  background: trans.isPrimary ?? trans.IsPrimary ? "#8f6420" : "transparent",
-                  color: trans.isPrimary ?? trans.IsPrimary ? "#fff" : "#8f6420",
-                  cursor: "pointer",
-                  fontSize: 13,
-                  fontWeight: 600,
-                }}
-                onClick={() => alert(`Chuyển sang: ${trans.label ?? trans.Label}`)}
-              >
-                {trans.label ?? trans.Label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Tabs */}
       <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "2px solid rgba(143,100,32,0.1)" }}>
         {["overview", "races", "rounds"].map((tab) => (
