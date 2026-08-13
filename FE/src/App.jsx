@@ -178,6 +178,7 @@ function AppLayout() {
               <Route path="/admin/registrations" element={<AdminPage />} />
               <Route path="/admin/roles" element={<AdminPage />} />
               <Route path="/admin/tournaments" element={<AdminPage />} />
+              <Route path="/admin/tracks" element={<AdminPage />} />
               <Route path="/admin/rounds" element={<AdminPage />} />
               <Route path="/admin/races" element={<AdminPage />} />
               <Route path="/admin/prizes" element={<AdminPage />} />
