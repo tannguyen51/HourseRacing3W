@@ -4,6 +4,19 @@ import { request } from "../services/apiClient";
 import { Input, Textarea, Button } from "./ui/Primitives";
 import { colors } from "../styles/designTokens";
 
+const localDateTimeValue = (value) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value || "");
+  if (!match) return Number.NaN;
+  const [, year, month, day, hour, minute] = match.map(Number);
+  return new Date(year, month - 1, day, hour, minute).getTime();
+};
+
+const dateOnlyToIso = (value, endOfDay = false) => {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
+  return date.toISOString();
+};
+
 function TournamentForm({ onClose, onSuccess }) {
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -61,22 +74,22 @@ function TournamentForm({ onClose, onSuccess }) {
         throw new Error("Vui lòng chọn sân đấu và đầy đủ ngày giờ sử dụng.");
       if (new Set(trackSlots.map(x => x.trackId)).size !== trackSlots.length)
         throw new Error("Mỗi sân đấu chỉ được chọn một lần trong giải.");
-      if (trackSlots.some(x => new Date(x.availableFrom) >= new Date(x.availableTo)))
+      if (trackSlots.some(x => localDateTimeValue(x.availableFrom) >= localDateTimeValue(x.availableTo)))
         throw new Error("Giờ kết thúc sử dụng sân phải sau giờ bắt đầu.");
       const payload = {
         name: form.name,
         description: form.description,
         venue: form.venue,
         category: form.category,
-        startDate: new Date(form.startDate).toISOString(),
-        endDate: new Date(form.endDate).toISOString(),
+        startDate: dateOnlyToIso(form.startDate),
+        endDate: dateOnlyToIso(form.endDate, true),
         prizePool: Number(form.prizePool),
         imageUrl: form.imageUrl || null,
-        registrationDeadline: form.registrationDeadline ? new Date(form.registrationDeadline).toISOString() : null,
+        registrationDeadline: form.registrationDeadline ? dateOnlyToIso(form.registrationDeadline, true) : null,
         tracks: trackSlots.map(x => ({
           trackId: x.trackId,
-          availableFrom: new Date(x.availableFrom).toISOString(),
-          availableTo: new Date(x.availableTo).toISOString(),
+          availableFrom: new Date(localDateTimeValue(x.availableFrom)).toISOString(),
+          availableTo: new Date(localDateTimeValue(x.availableTo)).toISOString(),
         })),
       };
 
@@ -111,8 +124,8 @@ function TournamentForm({ onClose, onSuccess }) {
                   <option value="">-- Chọn sân --</option>
                   {tracks.map(t => <option key={t.id ?? t.Id} value={t.id ?? t.Id}>{t.name ?? t.Name}</option>)}
                 </select>
-                <input required type="datetime-local" value={slot.availableFrom} onChange={e => updateTrackSlot(index,"availableFrom",e.target.value)} style={{padding:10,borderRadius:8,border:"1px solid #d7c8aa"}} />
-                <input required type="datetime-local" value={slot.availableTo} onChange={e => updateTrackSlot(index,"availableTo",e.target.value)} style={{padding:10,borderRadius:8,border:"1px solid #d7c8aa"}} />
+                <input required type="datetime-local" min={form.startDate ? `${form.startDate}T00:00` : undefined} max={form.endDate ? `${form.endDate}T23:59` : undefined} value={slot.availableFrom} onChange={e => updateTrackSlot(index,"availableFrom",e.target.value)} style={{padding:10,borderRadius:8,border:"1px solid #d7c8aa"}} />
+                <input required type="datetime-local" min={slot.availableFrom || (form.startDate ? `${form.startDate}T00:00` : undefined)} max={form.endDate ? `${form.endDate}T23:59` : undefined} value={slot.availableTo} onChange={e => updateTrackSlot(index,"availableTo",e.target.value)} style={{padding:10,borderRadius:8,border:"1px solid #d7c8aa"}} />
                 {trackSlots.length > 1 && <button type="button" onClick={() => setTrackSlots(prev => prev.filter((_,i)=>i!==index))} style={{border:0,background:"transparent",color:"#dc2626",cursor:"pointer"}}>Xóa</button>}
               </div>
             ))}
