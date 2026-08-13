@@ -26,7 +26,6 @@ function TournamentForm({ onClose, onSuccess }) {
   const [form, setForm] = useState({
     name: "",
     description: "",
-    venue: "",
     category: "",
     startDate: "",
     endDate: "",
@@ -79,7 +78,6 @@ function TournamentForm({ onClose, onSuccess }) {
       const payload = {
         name: form.name,
         description: form.description,
-        venue: form.venue,
         category: form.category,
         startDate: dateOnlyToIso(form.startDate),
         endDate: dateOnlyToIso(form.endDate, true),
@@ -110,7 +108,6 @@ function TournamentForm({ onClose, onSuccess }) {
         <form onSubmit={handleSubmit}>
           <Input label="Tên giải đấu" value={form.name} onChange={(e) => updateForm("name", e.target.value)} placeholder="Giải vô địch quốc gia 2026" required />
           <Textarea label="Mô tả" value={form.description} onChange={(e) => updateForm("description", e.target.value)} placeholder="Mô tả ngắn về giải đấu..." rows={3} />
-          <Input label="Địa điểm" value={form.venue} onChange={(e) => updateForm("venue", e.target.value)} placeholder="Hà Nội" />
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
             <Input label="Ngày bắt đầu" type="date" value={form.startDate} onChange={(e) => updateForm("startDate", e.target.value)} required />
             <Input label="Ngày kết thúc" type="date" value={form.endDate} onChange={(e) => updateForm("endDate", e.target.value)} required />
