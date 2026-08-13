@@ -9,8 +9,6 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
   const [error, setError] = useState("");
   const [tracks, setTracks] = useState([]);
   const [referees, setReferees] = useState([]);
-  const [showTrackForm, setShowTrackForm] = useState(false);
-  const [newTrackName, setNewTrackName] = useState("");
 
   const fmtDate = (v) => v ? new Date(v).toISOString().slice(0, 10) : "";
   const startLabel = fmtDate(tournamentStartDate);
@@ -19,7 +17,7 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
 
   const [form, setForm] = useState({
     tournamentId: tournamentId || "",
-    trackId: raceData?.trackId || "",
+    trackId: raceData?.trackId || raceData?.TrackId || "",
     name: raceData?.name || raceData?.Name || "",
     distance: raceData?.distance || raceData?.Distance || 1200,
     maxParticipants: raceData?.maxParticipants || raceData?.MaxParticipants || 8,
@@ -38,8 +36,9 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
 
   const loadTracks = async () => {
     try {
-      const list = await request("/api/tracks");
-      setTracks(Array.isArray(list) ? list : list?.data ?? []);
+      const response = await request(`/api/tournaments/${tournamentId}`);
+      const tournament = response?.data ?? response;
+      setTracks(tournament?.tracks ?? tournament?.Tracks ?? []);
     } catch { /* empty */ }
   };
 
@@ -72,27 +71,13 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
     setRounds((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  const handleCreateTrack = async () => {
-    if (!newTrackName.trim()) return;
-    try {
-      await request("/api/tracks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newTrackName.trim() }),
-      });
-      setNewTrackName("");
-      setShowTrackForm(false);
-      loadTracks();
-    } catch (err) {
-      setError("Lỗi tạo đường đua: " + (err.message || ""));
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (submittingRef.current) return;
     if (!form.name.trim()) { setError("Vui lòng nhập tên cuộc đua."); return; }
+    if (!form.trackId) { setError("Vui lòng chọn sân đấu của giải."); return; }
     if (!form.scheduledAt) { setError("Vui lòng chọn thời gian bắt đầu."); return; }
+    if (!form.scheduledEndAt || new Date(form.scheduledEndAt) <= new Date(form.scheduledAt)) { setError("Thời gian kết thúc phải sau thời gian bắt đầu."); return; }
     submittingRef.current = true;
     setSubmitting(true);
     setError("");
@@ -159,19 +144,12 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
           <div style={{marginBottom:16}}>
             <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"#34415b"}}>Đường đua</label>
             <div style={{display:"flex",gap:8}}>
-              <select value={form.trackId} onChange={(e) => updateForm("trackId", e.target.value)} style={{flex:1,padding:10,borderRadius:8,border:"1px solid rgba(143,100,32,0.2)",fontSize:14}}>
-                <option value="">-- Chọn đường đua --</option>
-                {tracks.map((t) => (<option key={t.id || t.Id} value={t.id || t.Id}>{t.name || t.Name}</option>))}
+              <select required value={form.trackId} onChange={(e) => updateForm("trackId", e.target.value)} style={{flex:1,padding:10,borderRadius:8,border:"1px solid rgba(143,100,32,0.2)",fontSize:14}}>
+                <option value="">-- Chọn sân đấu của giải --</option>
+                {tracks.map((t) => (<option key={t.trackId || t.TrackId} value={t.trackId || t.TrackId}>{t.trackName || t.TrackName}</option>))}
               </select>
-              <button type="button" onClick={() => setShowTrackForm(!showTrackForm)} style={{padding:"10px 16px",borderRadius:8,border:"1px solid #e6a54a",background:"transparent",color:"#e6a54a",cursor:"pointer",whiteSpace:"nowrap",fontSize:13,fontWeight:600}}>+ Tạo đường đua</button>
             </div>
-            {showTrackForm && (
-              <div style={{marginTop:8,display:"flex",gap:8}}>
-                <input value={newTrackName} onChange={(e) => setNewTrackName(e.target.value)} placeholder="Tên đường đua mới" style={{flex:1,padding:"8px 12px",borderRadius:8,border:"1px solid rgba(143,100,32,0.2)",fontSize:13}} autoFocus />
-                <button type="button" onClick={handleCreateTrack} style={{padding:"8px 16px",borderRadius:8,border:"none",background:"#e6a54a",color:"#fff",cursor:"pointer",fontSize:13}}>Tạo</button>
-                <button type="button" onClick={() => setShowTrackForm(false)} style={{padding:"8px 12px",borderRadius:8,border:"none",background:"transparent",color:"#657086",cursor:"pointer",fontSize:13}}>Hủy</button>
-              </div>
-            )}
+            <small style={{color:"#657086"}}>Danh sách sân đã được gắn khi tạo giải đấu.</small>
           </div>
 
           <Input label="Tên cuộc đua" value={form.name} onChange={(e) => updateForm("name", e.target.value)} placeholder="Ví dụ: Chung kết 1200m" required />
@@ -195,7 +173,7 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
           </div>
 
           <Input label="Thời gian bắt đầu" type="datetime-local" value={form.scheduledAt} onChange={(e) => updateForm("scheduledAt", e.target.value)} required />
-          <Input label="Thời gian kết thúc (dự kiến)" type="datetime-local" value={form.scheduledEndAt} onChange={(e) => updateForm("scheduledEndAt", e.target.value)} />
+          <Input label="Thời gian kết thúc (dự kiến)" type="datetime-local" value={form.scheduledEndAt} onChange={(e) => updateForm("scheduledEndAt", e.target.value)} required />
 
           {/* Referees */}
           <div style={{marginBottom:16}}>

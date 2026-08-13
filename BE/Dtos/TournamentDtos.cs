@@ -12,6 +12,22 @@ public class CreateTournamentRequest
     public DateTime EndDate { get; set; }
     public DateTime? RegistrationDeadline { get; set; }
     public string? ImageUrl { get; set; }
+    public List<TournamentTrackRequest> Tracks { get; set; } = new();
+}
+
+public class TournamentTrackRequest
+{
+    public Guid TrackId { get; set; }
+    public DateTime AvailableFrom { get; set; }
+    public DateTime AvailableTo { get; set; }
+}
+
+public class TournamentTrackDto
+{
+    public Guid TrackId { get; set; }
+    public string TrackName { get; set; } = string.Empty;
+    public DateTime AvailableFrom { get; set; }
+    public DateTime AvailableTo { get; set; }
 }
 
 public class UpdateTournamentRequest
@@ -53,6 +69,7 @@ public class TournamentResponse
 
     // Available transitions
     public List<NextTransitionDto> NextTransitions { get; set; } = new();
+    public List<TournamentTrackDto> Tracks { get; set; } = new();
 }
 
 // New DTOs for Tournament Management

@@ -20,4 +20,7 @@ public class Track
     public int? Length { get; set; } // meters
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public ICollection<TournamentTrack> TournamentTracks { get; set; } = new List<TournamentTrack>();
+    public ICollection<Race> Races { get; set; } = new List<Race>();
 }
