@@ -10,6 +10,7 @@ public class JockeyListResponse
     public string Email { get; set; } = string.Empty;
     public string? LicenseNumber { get; set; }
     public string? Nationality { get; set; }
+    public decimal? Weight { get; set; }
     public int ExperienceYears { get; set; }
     public int TotalRaces { get; set; }
     public int TotalWins { get; set; }

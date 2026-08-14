@@ -972,7 +972,7 @@ function ScheduleManagement({ type }) {
   const [approvedHorses, setApprovedHorses] = useState([]);
   const [approvedJockeys, setApprovedJockeys] = useState([]);
   const [message, setMessage] = useState("");
-  const [assignment, setAssignment] = useState({ raceId: "", horseId: "", jockeyId: "" });
+  const [assignment, setAssignment] = useState({ raceId: "", horseId: "", jockeyId: "", equipmentWeight: 2 });
   const [expandedRaceId, setExpandedRaceId] = useState(null);
   const [raceEntries, setRaceEntries] = useState([]);
   const [raceReferees, setRaceReferees] = useState([]);
@@ -1035,7 +1035,7 @@ function ScheduleManagement({ type }) {
 
   const [form, setForm] = useState(type === "round"
     ? { name: "", roundNumber: 1, scheduledStartDate: inputDate(7), scheduledEndDate: inputDate(8), description: "" }
-    : { name: "", roundId: "", scheduledAt: inputDate(7), location: "", description: "", maxParticipants: 12, distance: 2000, imageUrl: "" });
+    : { name: "", roundId: "", scheduledAt: inputDate(7), location: "", description: "", maxParticipants: 12, distance: 2000, targetWeight: 55, weightTolerance: 0.5, maxBallastWeight: 10, imageUrl: "" });
 
   useEffect(() => { getAdminTournaments().then((data) => { const list = Array.isArray(data) ? data : []; setTournaments(list); setSelected(list[0]?.id ?? list[0]?.Id ?? ""); }).catch((err) => setMessage(err.message)); }, []);
   useEffect(() => {
@@ -1086,6 +1086,23 @@ function ScheduleManagement({ type }) {
     selectedHorse?.assignedJockeyName ??
     selectedHorse?.AssignedJockeyName ??
     "";
+  const selectedRace = items.find(
+    (race) => (race.id ?? race.Id) === assignment.raceId,
+  );
+  const selectedJockey = approvedJockeys.find(
+    (jockey) => (jockey.id ?? jockey.Id) === assignment.jockeyId,
+  );
+  const jockeyWeight = Number(selectedJockey?.weight ?? selectedJockey?.Weight);
+  const equipmentWeight = Number(assignment.equipmentWeight || 0);
+  const targetWeight = Number(selectedRace?.targetWeight ?? selectedRace?.TargetWeight ?? 55);
+  const weightTolerance = Number(selectedRace?.weightTolerance ?? selectedRace?.WeightTolerance ?? 0.5);
+  const maxBallastWeight = Number(selectedRace?.maxBallastWeight ?? selectedRace?.MaxBallastWeight ?? 10);
+  const baseCarriedWeight = jockeyWeight + equipmentWeight;
+  const requiredBallast = Number.isFinite(baseCarriedWeight) ? Math.max(0, targetWeight - baseCarriedWeight) : 0;
+  const isOverweight = Number.isFinite(baseCarriedWeight) && baseCarriedWeight > targetWeight + weightTolerance;
+  const exceedsBallastLimit = requiredBallast > maxBallastWeight;
+  const weightAssignmentInvalid = Boolean(assignment.jockeyId) &&
+    (!Number.isFinite(jockeyWeight) || jockeyWeight <= 0 || isOverweight || exceedsBallastLimit);
   const visibleHorses = assignment.jockeyId
     ? approvedHorses.filter(
         (horse) => {
@@ -1137,7 +1154,7 @@ function ScheduleManagement({ type }) {
         await createRound(selected, { ...form, scheduledStartDate: new Date(form.scheduledStartDate).toISOString(), scheduledEndDate: new Date(form.scheduledEndDate).toISOString() });
         setItems(await getTournamentRounds(selected));
       } else {
-        await createRace({ ...form, tournamentId: selected, roundId: form.roundId || null, scheduledAt: new Date(form.scheduledAt).toISOString(), maxParticipants: Number(form.maxParticipants), distance: Number(form.distance) });
+        await createRace({ ...form, tournamentId: selected, roundId: form.roundId || null, scheduledAt: new Date(form.scheduledAt).toISOString(), maxParticipants: Number(form.maxParticipants), distance: Number(form.distance), targetWeight: Number(form.targetWeight), weightTolerance: Number(form.weightTolerance), maxBallastWeight: Number(form.maxBallastWeight) });
         setItems(await getTournamentRaces(selected));
       }
       setMessage(`${type === "round" ? "Vòng đấu" : "Cuộc đua"} đã tạo thành công.`);
@@ -1163,9 +1180,10 @@ function ScheduleManagement({ type }) {
       await assignHorseToRace(assignment.raceId, {
         horseId,
         jockeyId: jockeyId || null,
+        equipmentWeight: Number(assignment.equipmentWeight || 0),
       });
       setMessage("Đã phân công ngựa vào cuộc đua thành công.");
-      setAssignment({ raceId: "", horseId: "", jockeyId: "" });
+      setAssignment({ raceId: "", horseId: "", jockeyId: "", equipmentWeight: 2 });
       setItems(await getTournamentRaces(selected));
       refreshBusyHorses();
     } catch (err) { setMessage(err.message); }
@@ -1241,6 +1259,9 @@ function ScheduleManagement({ type }) {
           <input placeholder="Địa điểm" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} />
           <input type="number" min="1" placeholder="Số người tham gia tối đa" value={form.maxParticipants} onChange={(e) => setForm({ ...form, maxParticipants: e.target.value })} />
           <input type="number" min="100" placeholder="Khoảng cách (m)" value={form.distance} onChange={(e) => setForm({ ...form, distance: e.target.value })} />
+          <input type="number" min="30" max="100" step="0.1" placeholder="Tải mục tiêu (kg)" value={form.targetWeight} onChange={(e) => setForm({ ...form, targetWeight: e.target.value })} />
+          <input type="number" min="0" max="5" step="0.1" placeholder="Sai số (kg)" value={form.weightTolerance} onChange={(e) => setForm({ ...form, weightTolerance: e.target.value })} />
+          <input type="number" min="0" max="20" step="0.1" placeholder="Chì tối đa (kg)" value={form.maxBallastWeight} onChange={(e) => setForm({ ...form, maxBallastWeight: e.target.value })} />
           <label style={{ fontSize: 13, color: "#657086" }}>Ảnh nền cuộc đua:
             <input type="file" accept="image/*" onChange={async (e) => {
               const f = e.target.files?.[0]; if (!f) return;
@@ -1277,10 +1298,24 @@ function ScheduleManagement({ type }) {
         </select>
         <select className="admin-select" value={assignment.jockeyId} onChange={(e) => selectJockey(e.target.value)} disabled={Boolean(selectedHorseJockeyId)}>
           <option value="">Không có kỵ sĩ</option>
-          {approvedJockeys.map((jockey) => <option key={jockey.id} value={jockey.id}>{jockey.fullName}</option>)}
+          {approvedJockeys.map((jockey) => <option key={jockey.id} value={jockey.id}>{jockey.fullName} · {jockey.weight ?? "?"} kg</option>)}
         </select>
-        <button className="primary-button" disabled={!assignment.raceId || !assignment.horseId}>Phân công ngựa</button>
+        <input type="number" min="0" max="20" step="0.1" value={assignment.equipmentWeight} onChange={(e) => setAssignment({ ...assignment, equipmentWeight: e.target.value })} placeholder="Trang bị (kg)" />
+        <button className="primary-button" disabled={!assignment.raceId || !assignment.horseId || weightAssignmentInvalid}>Phân công ngựa</button>
       </form>}
+      {type === "race" && assignment.jockeyId && (
+        <p className="admin-muted-note" style={{color: weightAssignmentInvalid ? "#b91c1c" : requiredBallast > weightTolerance ? "#a16207" : "#15803d"}}>
+          {!Number.isFinite(jockeyWeight) || jockeyWeight <= 0
+            ? "Kỵ sĩ chưa cập nhật cân nặng nên chưa thể phân công."
+            : isOverweight
+              ? `Quá tải ${(baseCarriedWeight - targetWeight).toFixed(1)} kg so với mức ${targetWeight} kg. Hãy chọn kỵ sĩ nhẹ hơn.`
+              : exceedsBallastLimit
+                ? `Cần ${requiredBallast.toFixed(1)} kg chì, vượt giới hạn ${maxBallastWeight} kg.`
+                : requiredBallast > weightTolerance
+                  ? `Cần đeo thêm ${requiredBallast.toFixed(1)} kg chì. Tổng tải sau bổ sung: ${targetWeight.toFixed(1)} kg.`
+                  : `Tải hiện tại ${baseCarriedWeight.toFixed(1)} kg, nằm trong sai số cho phép ±${weightTolerance} kg.`}
+        </p>
+      )}
       {type === "race" && selectedHorseJockeyId ? (
         <p className="admin-muted-note">
           Ngựa này được phân công cho {selectedHorseJockeyName || "kỵ sĩ đã chọn"}. Kỵ sĩ sẽ được thêm tự động.
@@ -1377,12 +1412,13 @@ function ScheduleManagement({ type }) {
               ) : (
                 <table style={{width:"100%",fontSize:13,borderCollapse:"collapse"}}>
                   <thead><tr>
-                    <th style={th}>Ngựa</th><th style={th}>Kỵ sĩ</th><th style={th}>Tỉ lệ cược</th>
+                    <th style={th}>Ngựa</th><th style={th}>Kỵ sĩ</th><th style={th}>Tải trọng</th><th style={th}>Tỉ lệ cược</th>
                   </tr></thead>
                   <tbody>{raceEntries.map(e => (
                     <tr key={e.entryId ?? e.EntryId}>
                       <td style={td}>{e.horseName ?? e.HorseName}</td>
                       <td style={td}>{e.jockeyName ?? e.JockeyName ?? "Chưa có"}</td>
+                      <td style={td}>{e.weightCarried ?? e.WeightCarried ? `${e.weightCarried ?? e.WeightCarried} kg${(e.ballastWeight ?? e.BallastWeight ?? 0) > 0 ? ` (+${e.ballastWeight ?? e.BallastWeight} kg chì)` : ""}` : "—"}</td>
                       <td style={td}>{(e.odds ?? e.Odds ?? 1).toFixed(2)}x</td>
                     </tr>
                   ))}</tbody>

@@ -51,6 +51,15 @@ public class Race
 
     public int Distance { get; set; } = 2000; // meters
 
+    [Column(TypeName = "decimal(6,2)")]
+    public decimal TargetWeight { get; set; } = 55m;
+
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal WeightTolerance { get; set; } = 0.5m;
+
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal MaxBallastWeight { get; set; } = 10m;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

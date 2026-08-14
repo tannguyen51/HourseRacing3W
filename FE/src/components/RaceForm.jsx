@@ -21,6 +21,9 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
     name: raceData?.name || raceData?.Name || "",
     distance: raceData?.distance || raceData?.Distance || 1200,
     maxParticipants: raceData?.maxParticipants || raceData?.MaxParticipants || 8,
+    targetWeight: raceData?.targetWeight ?? raceData?.TargetWeight ?? 55,
+    weightTolerance: raceData?.weightTolerance ?? raceData?.WeightTolerance ?? 0.5,
+    maxBallastWeight: raceData?.maxBallastWeight ?? raceData?.MaxBallastWeight ?? 10,
     scheduledAt: toLocal(raceData?.scheduledAt || raceData?.ScheduledAt),
     scheduledEndAt: toLocal(raceData?.scheduledEndAt || raceData?.ScheduledEndAt || raceData?.actualEndTime || raceData?.ActualEndTime),
   });
@@ -89,6 +92,9 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
         name: form.name,
         distance: Number(form.distance),
         maxParticipants: Number(form.maxParticipants),
+        targetWeight: Number(form.targetWeight),
+        weightTolerance: Number(form.weightTolerance),
+        maxBallastWeight: Number(form.maxBallastWeight),
         scheduledAt: new Date(form.scheduledAt).toISOString(),
         scheduledEndAt: form.scheduledEndAt ? new Date(form.scheduledEndAt).toISOString() : null,
         roundNames: rounds.filter(r => r.name).map(r => r.name).join(","),
@@ -174,6 +180,16 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
 
           <Input label="Thời gian bắt đầu" type="datetime-local" value={form.scheduledAt} onChange={(e) => updateForm("scheduledAt", e.target.value)} required />
           <Input label="Thời gian kết thúc (dự kiến)" type="datetime-local" value={form.scheduledEndAt} onChange={(e) => updateForm("scheduledEndAt", e.target.value)} required />
+
+          <div style={{padding:16,borderRadius:10,background:"#f8fafc",border:"1px solid #e2e8f0",marginBottom:16}}>
+            <strong style={{display:"block",marginBottom:10,color:"#172033"}}>Quy định tải trọng</strong>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3, 1fr)",gap:12}}>
+              <Input label="Tải mục tiêu (kg)" type="number" value={form.targetWeight} onChange={(e) => updateForm("targetWeight", e.target.value)} min="30" max="100" step="0.1" required />
+              <Input label="Sai số (kg)" type="number" value={form.weightTolerance} onChange={(e) => updateForm("weightTolerance", e.target.value)} min="0" max="5" step="0.1" required />
+              <Input label="Chì tối đa (kg)" type="number" value={form.maxBallastWeight} onChange={(e) => updateForm("maxBallastWeight", e.target.value)} min="0" max="20" step="0.1" required />
+            </div>
+            <small style={{color:"#657086"}}>Tổng tải gồm cân nặng kỵ sĩ, trang bị và chì bổ sung.</small>
+          </div>
 
           {/* Referees */}
           <div style={{marginBottom:16}}>

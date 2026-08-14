@@ -198,6 +198,10 @@ public class RefereesController : ControllerBase
             HorseTotalRaces = e.Horse?.TotalRaces ?? 0,
             JockeyId = e.JockeyId,
             JockeyName = e.Jockey?.User?.FullName,
+            JockeyWeight = e.Jockey?.Weight,
+            EquipmentWeight = e.EquipmentWeight,
+            BallastWeight = e.BallastWeight,
+            WeightCarried = e.WeightCarried,
             JockeyWinRate = e.Jockey?.WinRate ?? 0,
             Odds = e.Odds,
             Status = e.Status.ToString()

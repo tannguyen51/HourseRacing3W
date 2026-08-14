@@ -45,6 +45,12 @@ public class RaceEntry
     [Column(TypeName = "decimal(18,2)")]
     public decimal? WeightCarried { get; set; } // kg
 
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal EquipmentWeight { get; set; } = 2m;
+
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal BallastWeight { get; set; }
+
     [MaxLength(50)]
     public string? Equipment { get; set; }
 
