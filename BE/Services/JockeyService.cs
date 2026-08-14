@@ -47,6 +47,7 @@ public class JockeyService : IJockeyService
             Email = jockey.User?.Email ?? string.Empty,
             LicenseNumber = jockey.LicenseNumber,
             Nationality = jockey.Nationality,
+            Weight = jockey.Weight,
             ExperienceYears = jockey.ExperienceYears,
             TotalRaces = jockey.TotalRaces,
             TotalWins = jockey.TotalWins,

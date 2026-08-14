@@ -124,6 +124,8 @@ public class RaceEntryService : IRaceEntryService
             .Select(h => h.HorseId).Distinct().ToListAsync();
 
         var invalidReasons = new List<string>();
+        var raceRules = await _races.GetByIdAsync(raceId);
+        var weightDataChanged = false;
         foreach (var e in entries)
         {
             var horseName = e.Horse?.Name ?? e.HorseId.ToString();
@@ -139,11 +141,31 @@ public class RaceEntryService : IRaceEntryService
 
             if (e.JockeyId.HasValue && reasons.Count == 0)
             {
-                var race = e.Race ?? await _races.GetByIdAsync(raceId);
+                var race = e.Race ?? raceRules;
                 if (race != null && await _entries.HasJockeyScheduleConflictAsync(e.JockeyId!.Value,
                         race.ScheduledAt, race.ScheduledEndAt ?? race.ScheduledAt.AddMinutes(30), e.Id))
                 {
                     reasons.Add("Kỵ sĩ bị trùng lịch đua");
+                }
+
+                if (e.Jockey?.Weight is null or <= 0)
+                {
+                    reasons.Add("Kỵ sĩ chưa cập nhật cân nặng");
+                }
+                else if (race != null)
+                {
+                    var weightResult = WeightAssignmentCalculator.Calculate(e.Jockey.Weight.Value,
+                        e.EquipmentWeight, race.TargetWeight, race.WeightTolerance, race.MaxBallastWeight);
+                    if (!weightResult.IsAllowed)
+                    {
+                        reasons.Add(weightResult.Message);
+                    }
+                    else
+                    {
+                        e.BallastWeight = weightResult.BallastWeight;
+                        e.WeightCarried = weightResult.TotalWeight;
+                        weightDataChanged = true;
+                    }
                 }
             }
 
@@ -152,6 +174,9 @@ public class RaceEntryService : IRaceEntryService
                 invalidReasons.Add($"{horseName} [{string.Join(", ", reasons)}]");
             }
         }
+
+        if (weightDataChanged)
+            await _unitOfWork.SaveChangesAsync();
 
         return invalidReasons.Count == 0
             ? ServiceResult<bool>.Ok(true)

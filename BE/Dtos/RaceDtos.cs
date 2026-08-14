@@ -25,6 +25,9 @@ public class CreateRaceRequest
     public int MaxParticipants { get; set; } = 12;
     public int Distance { get; set; } = 2000;
     public string? RoundNames { get; set; }
+    public decimal TargetWeight { get; set; } = 55m;
+    public decimal WeightTolerance { get; set; } = 0.5m;
+    public decimal MaxBallastWeight { get; set; } = 10m;
 }
 
 public class UpdateRaceRequest
@@ -38,6 +41,9 @@ public class UpdateRaceRequest
     public int? MaxParticipants { get; set; }
     public int? Distance { get; set; }
     public string? RoundNames { get; set; }
+    public decimal? TargetWeight { get; set; }
+    public decimal? WeightTolerance { get; set; }
+    public decimal? MaxBallastWeight { get; set; }
 }
 
 public class RaceDetailResponse
@@ -60,6 +66,9 @@ public class RaceDetailResponse
     public int EntriesCount { get; set; }
     public int ActiveRefereesCount { get; set; }
     public string? RoundNames { get; set; }
+    public decimal TargetWeight { get; set; }
+    public decimal WeightTolerance { get; set; }
+    public decimal MaxBallastWeight { get; set; }
 }
 
 public class JockeyAssignedRaceResponse
@@ -110,6 +119,7 @@ public class AssignHorseToRaceRequest
 {
     public Guid HorseId { get; set; }
     public Guid? JockeyId { get; set; }
+    public decimal EquipmentWeight { get; set; } = 2m;
 }
 
 public class BulkAssignHorsesToRaceRequest

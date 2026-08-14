@@ -69,6 +69,10 @@ public class RaceManagementService : IRaceManagementService
     {
         try
         {
+            var weightValidationError = ValidateWeightRules(request.TargetWeight, request.WeightTolerance, request.MaxBallastWeight);
+            if (weightValidationError != null)
+                return ServiceResult<RaceDetailResponse>.Fail(400, weightValidationError);
+
             var tournament = await _tournamentRepo.GetByIdAsync(request.TournamentId);
             if (tournament == null)
             {
@@ -97,6 +101,9 @@ public class RaceManagementService : IRaceManagementService
                 Description = request.Description,
                 MaxParticipants = request.MaxParticipants,
                 Distance = request.Distance,
+                TargetWeight = request.TargetWeight,
+                WeightTolerance = request.WeightTolerance,
+                MaxBallastWeight = request.MaxBallastWeight,
                 RoundNames = request.RoundNames,
                 CreatedAt = DateTime.UtcNow
             };
@@ -141,6 +148,13 @@ public class RaceManagementService : IRaceManagementService
                 return ServiceResult<RaceDetailResponse>.Fail(404, "Không tìm thấy cuộc đua");
             }
 
+            var targetWeight = request.TargetWeight ?? race.TargetWeight;
+            var tolerance = request.WeightTolerance ?? race.WeightTolerance;
+            var maxBallast = request.MaxBallastWeight ?? race.MaxBallastWeight;
+            var weightValidationError = ValidateWeightRules(targetWeight, tolerance, maxBallast);
+            if (weightValidationError != null)
+                return ServiceResult<RaceDetailResponse>.Fail(400, weightValidationError);
+
             var proposedStart = request.ScheduledAt ?? race.ScheduledAt;
             var proposedEnd = request.ScheduledEndAt ?? race.ScheduledEndAt;
             var proposedTrackId = request.TrackId ?? race.TrackId;
@@ -167,6 +181,12 @@ public class RaceManagementService : IRaceManagementService
                 race.Distance = request.Distance.Value;
             if (!string.IsNullOrEmpty(request.RoundNames))
                 race.RoundNames = request.RoundNames;
+            if (request.TargetWeight.HasValue)
+                race.TargetWeight = request.TargetWeight.Value;
+            if (request.WeightTolerance.HasValue)
+                race.WeightTolerance = request.WeightTolerance.Value;
+            if (request.MaxBallastWeight.HasValue)
+                race.MaxBallastWeight = request.MaxBallastWeight.Value;
             if (request.ScheduledEndAt.HasValue)
                 race.ScheduledEndAt = request.ScheduledEndAt.Value;
             if (request.TrackId.HasValue)
@@ -309,6 +329,7 @@ public class RaceManagementService : IRaceManagementService
                 request.JockeyId = assignedJockey.Id;
             }
 
+            WeightAssignmentResult? weightAssignment = null;
             if (request.JockeyId.HasValue)
             {
                 var jockey = await _jockeyRepo.GetByIdAsync(request.JockeyId.Value);
@@ -319,6 +340,21 @@ public class RaceManagementService : IRaceManagementService
                 if (jockey.ApprovalStatus != ApprovalStatus.Approved)
                 {
                     return ServiceResult<bool>.Fail(400, "Kỵ sĩ chưa được admin phê duyệt");
+                }
+                if (!jockey.Weight.HasValue || jockey.Weight <= 0)
+                {
+                    return ServiceResult<bool>.Fail(400, "Kỵ sĩ chưa cập nhật cân nặng hợp lệ.");
+                }
+                if (request.EquipmentWeight < 0 || request.EquipmentWeight > 20)
+                {
+                    return ServiceResult<bool>.Fail(400, "Trọng lượng trang bị phải từ 0 đến 20 kg.");
+                }
+
+                weightAssignment = WeightAssignmentCalculator.Calculate(jockey.Weight.Value,
+                    request.EquipmentWeight, race.TargetWeight, race.WeightTolerance, race.MaxBallastWeight);
+                if (!weightAssignment.IsAllowed)
+                {
+                    return ServiceResult<bool>.Fail(400, weightAssignment.Message);
                 }
 
                 var hasScheduleConflict = await _entryRepo.HasJockeyScheduleConflictAsync(
@@ -337,6 +373,9 @@ public class RaceManagementService : IRaceManagementService
                 RaceId = raceId,
                 HorseId = request.HorseId,
                 JockeyId = request.JockeyId,
+                EquipmentWeight = request.JockeyId.HasValue ? request.EquipmentWeight : 0m,
+                BallastWeight = weightAssignment?.BallastWeight ?? 0m,
+                WeightCarried = weightAssignment?.TotalWeight,
                 // Admin trực tiếp gán ngựa → tự duyệt đăng ký và tự động xác nhận
                 Status = RegistrationStatus.Approved,
                 OwnerConfirmed = true,
@@ -765,6 +804,9 @@ public class RaceManagementService : IRaceManagementService
             Description = race.Description,
             MaxParticipants = race.MaxParticipants,
             Distance = race.Distance,
+            TargetWeight = race.TargetWeight,
+            WeightTolerance = race.WeightTolerance,
+            MaxBallastWeight = race.MaxBallastWeight,
             EntriesCount = race.Entries?.Count ?? 0,
             ActiveRefereesCount = race.RefereeAssignments?.Count(a => a.Status != RefereeAssignmentStatus.Cancelled) ?? 0,
             RoundNames = race.RoundNames,
@@ -780,5 +822,16 @@ public class RaceManagementService : IRaceManagementService
         if (!entries.Any()) return;
         OddsCalculator.Recalculate(entries);
         await _unitOfWork.SaveChangesAsync();
+    }
+
+    private static string? ValidateWeightRules(decimal targetWeight, decimal tolerance, decimal maxBallastWeight)
+    {
+        if (targetWeight is < 30m or > 100m)
+            return "Tải mục tiêu phải từ 30 đến 100 kg.";
+        if (tolerance is < 0m or > 5m)
+            return "Sai số tải trọng phải từ 0 đến 5 kg.";
+        if (maxBallastWeight is < 0m or > 20m)
+            return "Giới hạn chì phải từ 0 đến 20 kg.";
+        return null;
     }
 }
