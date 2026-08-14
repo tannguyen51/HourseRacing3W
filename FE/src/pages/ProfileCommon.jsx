@@ -39,7 +39,7 @@ export const btnSecondary = {
   color: "#8f6420", cursor: "pointer", transition: "all .2s",
 };
 
-export function Field({ label: l, value, onChange, type = "text", placeholder, readOnly }) {
+export function Field({ label: l, value, onChange, type = "text", placeholder, readOnly, min, max, step }) {
   return (
     <div style={fieldStyle}>
       <label style={fieldLabel}>{l}</label>
@@ -50,6 +50,9 @@ export function Field({ label: l, value, onChange, type = "text", placeholder, r
         onChange={onChange}
         placeholder={placeholder}
         readOnly={readOnly}
+        min={min}
+        max={max}
+        step={step}
         onFocus={(e) => { e.target.style.borderColor = "#8f6420"; }}
         onBlur={(e) => { e.target.style.borderColor = "rgba(143,100,32,0.2)"; }}
       />

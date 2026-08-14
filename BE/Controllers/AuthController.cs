@@ -104,7 +104,7 @@ public class AuthController : ControllerBase
         var jockey = await _jockeyRepo.GetByUserIdAsync(user.Id);
         return jockey is null
             ? new { user.Id, user.Email, user.FullName, Role = "Jockey", Type = "Jockey", user.CreatedAt }
-            : new { user.Id, user.Email, user.FullName, Role = "Jockey", Type = "Jockey", jockey.LicenseNumber, jockey.ExperienceYears, jockey.TotalRaces, jockey.TotalWins, WinRate = jockey.WinRate, jockey.Rank, jockey.Nationality, jockey.Status, user.CreatedAt };
+            : new { user.Id, user.Email, user.FullName, user.PhoneNumber, Role = "Jockey", Type = "Jockey", jockey.LicenseNumber, jockey.ExperienceYears, jockey.TotalRaces, jockey.TotalWins, WinRate = jockey.WinRate, jockey.Rank, jockey.Nationality, jockey.Height, jockey.Weight, jockey.Status, user.CreatedAt };
     }
 
     private async Task<object> BuildRefereeProfileAsync(User user)

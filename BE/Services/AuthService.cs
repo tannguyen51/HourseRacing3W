@@ -275,6 +275,30 @@ public class AuthService : IAuthService
             user.PhoneNumber = request.PhoneNumber.Trim();
         }
 
+        Jockey? jockey = null;
+        if (request.Height.HasValue || request.Weight.HasValue)
+        {
+            if (user.Role != UserRole.Jockey)
+            {
+                return ServiceResult<object>.Fail(StatusCodes.Status403Forbidden,
+                    "Chỉ tài khoản kỵ sĩ được cập nhật chiều cao và cân nặng.");
+            }
+
+            jockey = await _jockeys.GetByUserIdAsync(userId);
+            if (jockey == null)
+            {
+                return ServiceResult<object>.Fail(StatusCodes.Status404NotFound,
+                    "Không tìm thấy hồ sơ kỵ sĩ.");
+            }
+
+            if (request.Height.HasValue)
+                jockey.Height = request.Height.Value;
+            if (request.Weight.HasValue)
+                jockey.Weight = request.Weight.Value;
+            jockey.UpdatedAt = DateTime.UtcNow;
+            await _jockeys.UpdateAsync(jockey);
+        }
+
         user.UpdatedAt = DateTime.UtcNow;
         await _users.UpdateAsync(user);
         await _unitOfWork.SaveChangesAsync();
@@ -286,6 +310,8 @@ public class AuthService : IAuthService
             user.FullName,
             user.Email,
             user.PhoneNumber,
+            Height = jockey?.Height,
+            Weight = jockey?.Weight,
             user.CreatedAt
         });
     }
