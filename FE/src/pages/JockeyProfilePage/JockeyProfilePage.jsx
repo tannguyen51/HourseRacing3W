@@ -26,7 +26,7 @@ export default function JockeyProfilePage() {
   const [activeTab, setActiveTab] = useState("info");
   const [msg, setMsg] = useState(null);
   const [editMode, setEditMode] = useState(false);
-  const [info, setInfo] = useState({ fullName: "", phoneNumber: "" });
+  const [info, setInfo] = useState({ fullName: "", phoneNumber: "", height: "", weight: "" });
   const [pw, setPw] = useState({ currentPassword: "", newPassword: "", confirmNewPassword: "" });
   const [contracts, setContracts] = useState([]);
   const [contractsLoading, setContractsLoading] = useState(false);
@@ -39,7 +39,7 @@ export default function JockeyProfilePage() {
 
   useEffect(() => {
     getProfile()
-      .then((d) => { const p = d?.data ?? d; setProfile(p); setInfo({ fullName: p.fullName ?? p.FullName ?? "", phoneNumber: p.phoneNumber ?? p.PhoneNumber ?? "" }); })
+      .then((d) => { const p = d?.data ?? d; setProfile(p); setInfo({ fullName: p.fullName ?? p.FullName ?? "", phoneNumber: p.phoneNumber ?? p.PhoneNumber ?? "", height: p.height ?? p.Height ?? "", weight: p.weight ?? p.Weight ?? "" }); })
       .catch(() => { /* empty */ })
       .finally(() => setLoading(false));
   }, []);
@@ -57,8 +57,18 @@ export default function JockeyProfilePage() {
   }, [activeTab]);
 
   const saveInfo = async () => {
+    const height = Number(info.height);
+    const weight = Number(info.weight);
+    if (!Number.isFinite(height) || height < 100 || height > 250) {
+      showMsg("error", "Chiều cao phải từ 100 đến 250 cm.");
+      return;
+    }
+    if (!Number.isFinite(weight) || weight < 30 || weight > 200) {
+      showMsg("error", "Cân nặng phải từ 30 đến 200 kg.");
+      return;
+    }
     try {
-      const res = await updateProfile({ fullName: info.fullName, phoneNumber: info.phoneNumber });
+      const res = await updateProfile({ fullName: info.fullName, phoneNumber: info.phoneNumber, height, weight });
       const d = res?.data ?? res;
       setProfile((prev) => ({ ...prev, ...d }));
       setEditMode(false);
@@ -100,7 +110,7 @@ export default function JockeyProfilePage() {
               <button style={btnSecondary} onClick={() => setEditMode(true)}>Chỉnh sửa</button>
             ) : (
               <div style={{ display: "flex", gap: 10 }}>
-                <button style={btnSecondary} onClick={() => { setEditMode(false); setInfo({ fullName: profile.fullName ?? profile.FullName ?? "", phoneNumber: profile.phoneNumber ?? profile.PhoneNumber ?? "" }); }}>Huỷ</button>
+                <button style={btnSecondary} onClick={() => { setEditMode(false); setInfo({ fullName: profile.fullName ?? profile.FullName ?? "", phoneNumber: profile.phoneNumber ?? profile.PhoneNumber ?? "", height: profile.height ?? profile.Height ?? "", weight: profile.weight ?? profile.Weight ?? "" }); }}>Huỷ</button>
                 <button style={btnPrimary} onClick={saveInfo}>Lưu</button>
               </div>
             )}
@@ -109,6 +119,8 @@ export default function JockeyProfilePage() {
             <Field label="Họ và tên" value={info.fullName} onChange={(e) => setInfo((p) => ({ ...p, fullName: e.target.value }))} readOnly={!editMode} placeholder="Nhập họ tên" />
             <Field label="Email" value={profile.email ?? profile.Email ?? ""} readOnly placeholder="Email" />
             <Field label="Số điện thoại" value={info.phoneNumber} onChange={(e) => setInfo((p) => ({ ...p, phoneNumber: e.target.value }))} readOnly={!editMode} placeholder="Nhập số điện thoại" />
+            <Field label="Chiều cao (cm)" type="number" min="100" max="250" step="0.1" value={info.height} onChange={(e) => setInfo((p) => ({ ...p, height: e.target.value }))} readOnly={!editMode} placeholder="Ví dụ: 165" />
+            <Field label="Cân nặng (kg)" type="number" min="30" max="200" step="0.1" value={info.weight} onChange={(e) => setInfo((p) => ({ ...p, weight: e.target.value }))} readOnly={!editMode} placeholder="Ví dụ: 52" />
           </div>
           {!editMode && (
             <div style={grid2}>
@@ -116,6 +128,8 @@ export default function JockeyProfilePage() {
               <Detail label="Tỉ lệ thắng" value={`${profile.winRate ?? profile.WinRate ?? 0}%`} />
               <Detail label="Giấy phép" value={profile.licenseNumber ?? profile.LicenseNumber ?? "-"} />
               <Detail label="Quốc tịch" value={profile.nationality ?? profile.Nationality ?? "-"} />
+              <Detail label="Chiều cao" value={profile.height ?? profile.Height ? `${profile.height ?? profile.Height} cm` : "-"} />
+              <Detail label="Cân nặng" value={profile.weight ?? profile.Weight ? `${profile.weight ?? profile.Weight} kg` : "-"} />
               <Detail label="Ngày tham gia" value={profile.createdAt ? new Date(profile.createdAt).toLocaleDateString() : "-"} />
             </div>
           )}

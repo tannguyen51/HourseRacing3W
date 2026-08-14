@@ -90,6 +90,12 @@ public class UpdateProfileRequest
 {
     public string? FullName { get; set; }
     public string? PhoneNumber { get; set; }
+
+    [Range(100, 250, ErrorMessage = "Chiều cao phải từ 100 đến 250 cm.")]
+    public decimal? Height { get; set; }
+
+    [Range(30, 200, ErrorMessage = "Cân nặng phải từ 30 đến 200 kg.")]
+    public decimal? Weight { get; set; }
 }
 
 public class ForgotPasswordRequest
