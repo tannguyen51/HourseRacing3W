@@ -18,6 +18,72 @@ function fmtDate(v) {
   return new Date(v).toLocaleDateString("vi-VN", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function fmtDateTime(v) {
+  if (!v) return "—";
+  return new Date(v).toLocaleString("vi-VN", {
+    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+  });
+}
+
+const STATUS_LABEL = {
+  Confirmed: "Đã xác nhận",
+  Completed: "Hoàn thành",
+  Assigned: "Đã phân công",
+  Rejected: "Từ chối",
+  Cancelled: "Từ chối",
+};
+
+const RACE_STATUS_LABEL = {
+  scheduled: "Đã lên lịch",
+  registrationopen: "Đang mở đăng ký",
+  registrationclosed: "Đã đóng đăng ký",
+  inprogress: "Đang diễn ra",
+  awaitingresult: "Chờ nộp lại kết quả",
+  resultpendingapproval: "Chờ admin duyệt kết quả",
+  resultapproved: "Kết quả đã duyệt",
+  finished: "Đã kết thúc",
+  cancelled: "Đã hủy",
+};
+
+/* Suy ra việc trọng tài cần làm tiếp, dựa trên trạng thái phân công và trạng thái cuộc đua. */
+function nextSteps(a) {
+  const st = a?.status;
+  const rs = (a?.raceStatus ?? "").toLowerCase();
+
+  if (st === "Assigned") {
+    return {
+      hint: "Bạn chưa phản hồi lời mời làm trọng tài cho cuộc đua này.",
+      actions: [{ label: "Chấp nhận hoặc từ chối", to: "/referee/assignments" }],
+    };
+  }
+  if (st === "Rejected" || st === "Cancelled") {
+    return { hint: "Phân công này đã bị hủy, không còn việc cần làm.", actions: [] };
+  }
+  if (st === "Completed") {
+    return {
+      hint: "Cuộc đua đã khép lại.",
+      actions: [{ label: "Xem báo cáo đã nộp", to: "/referee/reports" }],
+    };
+  }
+
+  const actions = [];
+  let hint;
+  if (rs === "scheduled" || rs === "registrationopen" || rs === "registrationclosed") {
+    hint = "Cuộc đua chưa xuất phát. Mỗi ngựa phải có phiếu sức khỏe Đạt thì admin mới bấm bắt đầu được.";
+    actions.push({ label: "Khám sức khỏe ngựa", to: "/referee/health-checks" });
+  } else if (rs === "inprogress" || rs === "awaitingresult") {
+    hint = "Cuộc đua đang diễn ra. Phải nộp cả kết quả lẫn báo cáo thì admin mới duyệt được.";
+    actions.push({ label: "Nộp kết quả và báo cáo", to: "/referee/reports" });
+  } else if (rs === "resultpendingapproval") {
+    hint = "Bạn đã nộp kết quả, đang chờ admin duyệt.";
+  } else {
+    hint = "Hiện không có việc nào gấp cho cuộc đua này.";
+  }
+  actions.push({ label: "Ghi nhận vi phạm", to: "/referee/violations" });
+  actions.push({ label: "Ghi nhận chấn thương", to: "/referee/injuries" });
+  return { hint, actions };
+}
+
 /* ── Inline SVG: Racetrack with horses ── */
 function RacetrackSVG() {
   return (
@@ -83,7 +149,6 @@ function SortArrow({ dir }) {
    Page Component
    ================================================================== */
 export default function RefereeDashboardPage() {
-  // eslint-disable-next-line no-unused-vars
   const navigate = useNavigate();
   const [assignments, setAssignments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -91,6 +156,15 @@ export default function RefereeDashboardPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [sortKey, setSortKey] = useState("assignedAt");
   const [sortDir, setSortDir] = useState("desc");
+  const [detail, setDetail] = useState(null);
+
+  /* ── Đóng hộp chi tiết bằng phím Esc ── */
+  useEffect(() => {
+    if (!detail) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") setDetail(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [detail]);
 
   /* ── Fetch data ── */
   useEffect(() => {
@@ -342,14 +416,17 @@ export default function RefereeDashboardPage() {
                         <td className="rd-cell-date">{fmtDate(a.assignedAt)}</td>
                         <td>
                           <span className={`rd-pill ${pillClass(a.status)}`}>
-                            {a.status === "Confirmed" ? "Đã xác nhận" :
-                             a.status === "Completed" ? "Hoàn thành" :
-                             a.status === "Assigned" ? "Đã phân công" :
-                             a.status === "Rejected" || a.status === "Cancelled" ? "Từ chối" : a.status}
+                            {STATUS_LABEL[a.status] ?? a.status}
                           </span>
                         </td>
                         <td>
-                          <button className="rd-btn-detail">Chi tiết</button>
+                          <button
+                            className="rd-btn-detail"
+                            onClick={() => setDetail(a)}
+                            aria-label={`Xem chi tiết phân công ${a.raceName || "cuộc đua"}`}
+                          >
+                            Chi tiết
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -420,6 +497,84 @@ export default function RefereeDashboardPage() {
           <div className="rd-info">Đã xảy ra lỗi khi tải một phần dữ liệu.</div>
         )}
       </div>
+
+      {/* ════════ Assignment Detail Modal ════════ */}
+      {detail && (() => {
+        const steps = nextSteps(detail);
+        const raceStatusKey = (detail.raceStatus ?? "").toLowerCase();
+        return (
+          <div className="rd-modal" onClick={() => setDetail(null)}>
+            <div
+              className="rd-modal-card"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="rd-modal-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="rd-modal-head">
+                <div>
+                  <h3 id="rd-modal-title">{detail.raceName || "Cuộc đua"}</h3>
+                  <p className="rd-modal-sub">
+                    {[detail.tournamentName, detail.roundName].filter(Boolean).join(" · ") || "—"}
+                  </p>
+                </div>
+                <span className={`rd-pill ${pillClass(detail.status)}`}>
+                  {STATUS_LABEL[detail.status] ?? detail.status}
+                </span>
+              </div>
+
+              <dl className="rd-modal-fields">
+                <div>
+                  <dt>Vai trò</dt>
+                  <dd>{detail.role || "Trọng tài"}</dd>
+                </div>
+                <div>
+                  <dt>Trạng thái cuộc đua</dt>
+                  <dd>{RACE_STATUS_LABEL[raceStatusKey] ?? detail.raceStatus ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt>Ngày phân công</dt>
+                  <dd>{fmtDateTime(detail.assignedAt)}</dd>
+                </div>
+                <div>
+                  <dt>Ngày xác nhận</dt>
+                  <dd>{fmtDateTime(detail.confirmedAt)}</dd>
+                </div>
+                <div>
+                  <dt>Ngày hoàn tất</dt>
+                  <dd>{fmtDateTime(detail.completedAt)}</dd>
+                </div>
+                <div>
+                  <dt>Ghi chú</dt>
+                  <dd>{detail.notes || "—"}</dd>
+                </div>
+              </dl>
+
+              <div className="rd-modal-next">
+                <h4>Việc cần làm</h4>
+                <p className="rd-modal-hint">{steps.hint}</p>
+                {steps.actions.length > 0 && (
+                  <div className="rd-modal-actions">
+                    {steps.actions.map((act, i) => (
+                      <button
+                        key={act.to}
+                        className={i === 0 ? "rd-btn-go rd-btn-go--primary" : "rd-btn-go"}
+                        onClick={() => { setDetail(null); navigate(act.to); }}
+                      >
+                        {act.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rd-modal-foot">
+                <button className="rd-btn-close" onClick={() => setDetail(null)}>Đóng</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
