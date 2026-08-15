@@ -27,11 +27,11 @@ const getStatusMessage = (status) => {
   }
 };
 
-const formatCountdown = (value) => {
+const formatCountdown = (value, now = Date.now()) => {
   if (!value) return "--:--";
   const target = new Date(value);
   if (Number.isNaN(target.getTime())) return "--:--";
-  const diff = target.getTime() - Date.now();
+  const diff = target.getTime() - now;
   if (diff <= 0) return "Đã bắt đầu";
 
   const totalSeconds = Math.floor(diff / 1000);
@@ -59,10 +59,10 @@ const formatDateTime = (value) => {
 const BETTING_CLOSE_BEFORE_MS = 5 * 60 * 1000;
 const BETTABLE_STATUSES = new Set(["scheduled", "registrationopen", "registrationclosed"]);
 
-const canBetOnRace = (status, scheduledAt) => {
+const canBetOnRace = (status, scheduledAt, now = Date.now()) => {
   if (!BETTABLE_STATUSES.has(status)) return false;
   const startTime = new Date(scheduledAt).getTime();
-  return Number.isFinite(startTime) && startTime - Date.now() >= BETTING_CLOSE_BEFORE_MS;
+  return Number.isFinite(startTime) && startTime - now >= BETTING_CLOSE_BEFORE_MS;
 };
 
 function SpectatorPredictionFormPage() {
@@ -79,6 +79,15 @@ function SpectatorPredictionFormPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
   const [walletBalance, setWalletBalance] = useState(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const updateClock = () => setNow(Date.now());
+    updateClock();
+    const intervalId = window.setInterval(updateClock, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   useEffect(() => {
     getBalance()
@@ -188,12 +197,12 @@ function SpectatorPredictionFormPage() {
           id,
           name,
           time: formatDateTime(scheduledAt),
-          countdown: formatCountdown(scheduledAt),
+          countdown: formatCountdown(scheduledAt, now),
           status,
-          canBet: canBetOnRace(status, scheduledAt),
+          canBet: canBetOnRace(status, scheduledAt, now),
         };
       });
-  }, [races, selectedTournament]);
+  }, [races, selectedTournament, now]);
 
   useEffect(() => {
     if (raceOptions.length === 0) {
