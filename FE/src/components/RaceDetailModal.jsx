@@ -163,10 +163,10 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
             <>
               {/* Lưới 4 cột thông tin */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:22}}>
-                <InfoTile icon="📏" label="Khoảng cách" value={`${fmtNum(distance)}m`} />
-                <InfoTile icon="⚖️" label="Hạng cân" value={weightBand} />
-                <InfoTile icon="🏇" label="Số lượng ngựa" value={`${entriesCount}/${maxParticipants}`} tone={entriesCount >= maxParticipants ? "#b45309" : "#172033"} />
-                <InfoTile icon="🕔" label="Bắt đầu" value={fmtDate(scheduledAt)} />
+                <InfoTile icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.3 15.3l-2.6 2.6a1 1 0 0 1-1.4 0l-12-12a1 1 0 0 1 0-1.4l2.6-2.6a1 1 0 0 1 1.4 0l12 12a1 1 0 0 1 0 1.4z"/><path d="M14.5 16.5l-2-2"/><path d="M11.5 13.5l-2-2"/><path d="M8.5 10.5l-2-2"/><path d="M17.5 19.5l-2-2"/></svg>} label="Khoảng cách" value={`${fmtNum(distance)}m`} />
+                <InfoTile icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v18"/><rect width="4" height="2" x="10" y="21"/><path d="M3 8h18"/><path d="M4 8l2 5a2 2 0 0 0 4 0l2-5"/><path d="M14 8l2 5a2 2 0 0 0 4 0l2-5"/></svg>} label="Hạng cân" value={weightBand} />
+                <InfoTile icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>} label="Số lượng ngựa" value={`${entriesCount}/${maxParticipants}`} tone={entriesCount >= maxParticipants ? "#b45309" : "#172033"} />
+                <InfoTile icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>} label="Bắt đầu" value={fmtDate(scheduledAt)} />
               </div>
 
               {/* Bảng tỷ lệ cược */}
