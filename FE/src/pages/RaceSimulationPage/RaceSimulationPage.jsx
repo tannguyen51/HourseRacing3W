@@ -2,28 +2,35 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getRaces } from "../../services/spectatorApi";
 import { getRaceSimulation } from "../../services/simulationApi";
 import * as raceHub from "../../services/raceHub";
-import SimulationCanvas from "../../components/RaceSimulation/SimulationCanvas";
-import { computeHorse } from "../../components/RaceSimulation/engine";
+import RaceTrack from "../../components/RaceSimulation/RaceTrack";
+import { formatCountdown, validateScript } from "../../components/RaceSimulation/engine";
 
-const phaseInfo = {
-  waiting: { label: "Chưa bắt đầu", color: "#475569", bg: "rgba(71,85,105,0.12)" },
-  racing: { label: "Đang diễn ra", color: "#b45309", bg: "rgba(230,165,74,0.15)" },
-  finished: { label: "Đã về đích — chờ trọng tài xác nhận", color: "#7c3aed", bg: "rgba(139,92,246,0.12)" },
-  confirmed: { label: "Trọng tài đã xác nhận ngựa thắng", color: "#047857", bg: "rgba(16,185,129,0.12)" },
-  resolved: { label: "Cuộc đua đã kết thúc và thanh toán", color: "#172033", bg: "rgba(16,185,129,0.12)" },
+const PHASES = {
+  loading: { label: "Đang tải…", color: "#475569", bg: "rgba(71,85,105,0.12)" },
+  invalid: { label: "Script không hợp lệ", color: "#b91c1c", bg: "rgba(239,68,68,0.1)" },
+  gate: { label: "Chờ tại cổng xuất phát", color: "#475569", bg: "rgba(71,85,105,0.12)" },
+  countdown: { label: "Đếm ngược", color: "#b45309", bg: "rgba(230,165,74,0.18)" },
+  racing: { label: "Đang đua", color: "#b45309", bg: "rgba(230,165,74,0.15)" },
+  finished: { label: "Đã về đích — chờ kết quả chính thức", color: "#7c3aed", bg: "rgba(139,92,246,0.12)" },
+  official: { label: "Kết quả chính thức", color: "#047857", bg: "rgba(16,185,129,0.14)" },
+  resolved: { label: "Cuộc đua kết thúc", color: "#172033", bg: "rgba(16,185,129,0.12)" },
 };
 
 export default function RaceSimulationPage() {
   const [races, setRaces] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [plan, setPlan] = useState(null);
+  const [validation, setValidation] = useState([]);
   const [planError, setPlanError] = useState("");
-  const [phase, setPhase] = useState("waiting");
-  const [winner, setWinner] = useState(null);
+  const [ranking, setRanking] = useState([]);
+  const [phase, setPhase] = useState("loading");
+  const [winner, setWinner] = useState(null); // horseId chính thức
+  const [hubState, setHubState] = useState("connecting");
   const [now, setNow] = useState(0);
+
   const racesRef = useRef([]);
-  useEffect(() => { racesRef.current = races; }, [races]);
   const selectedIdRef = useRef(selectedId);
+  useEffect(() => { racesRef.current = races; }, [races]);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
 
   const loadRaces = async () => {
@@ -32,11 +39,7 @@ export default function RaceSimulationPage() {
       const arr = Array.isArray(list) ? list : [];
       setRaces(arr);
       const running = arr.find((r) => String(r.status ?? r.Status ?? "").toLowerCase() === "inprogress");
-      setSelectedId((cur) => {
-        // chỉ tự chọn lần đầu (hoặc khi chưa chọn) — không đè lựa chọn thủ công của người xem
-        if (!cur) return (running ? running.id ?? running.Id : arr[0]?.id ?? arr[0]?.Id ?? "");
-        return cur;
-      });
+      setSelectedId((cur) => (cur ? cur : (running ? running.id ?? running.Id : arr[0]?.id ?? arr[0]?.Id ?? "")));
     } catch { /* empty */ }
   };
 
@@ -51,55 +54,60 @@ export default function RaceSimulationPage() {
     try {
       const p = await getRaceSimulation(raceId);
       setPlan(p);
+      setValidation(validateScript(p));
       setPlanError("");
+      setWinner(null);
     } catch (err) {
       setPlanError(err.message || "Không thể tải kế hoạch mô phỏng.");
+      setPlan(null);
     }
   };
 
   useEffect(() => {
     if (!selectedId) return;
     setPlan(null);
+    setRanking([]);
+    setPhase("loading");
     refreshPlan(selectedId);
   }, [selectedId]);
 
-  // đồng hồ tick để cập nhật lap/overlay
+  // đồng hồ 200ms cho countdown / elapsed
   useEffect(() => {
-    const int = setInterval(() => setNow(Date.now()), 250);
+    const int = setInterval(() => setNow(Date.now()), 200);
     return () => clearInterval(int);
   }, []);
 
-  // hub subscription
+  // hub events + connection state
   useEffect(() => {
     if (!selectedId) return;
     const unsub = [];
-    // dùng ref để các handler stale (từ race cũ) không chạy nhầm cho race mới
-    const curId = () => selectedIdRef.current;
+    const cur = () => selectedIdRef.current;
+
     raceHub.on("RaceStarted", (payload) => {
       const pid = payload?.raceId;
-      const cur = curId();
-      if (pid && String(pid) !== String(cur)) {
-        const r = racesRef.current.find((x) => String(x.id ?? x.Id) === String(cur));
+      if (pid && String(pid) !== String(cur())) {
+        const r = racesRef.current.find((x) => String(x.id ?? x.Id) === String(cur()));
         const s = String(r?.status ?? r?.Status ?? "").toLowerCase();
-        if (!r || s !== "inprogress") {
-          setSelectedId(pid);
-          return;
-        }
+        if (!r || s !== "inprogress") { setSelectedId(pid); return; }
       }
-      setPhase("racing");
-      refreshPlan(cur);
+      refreshPlan(cur());
     }).then((u) => unsub.push(u));
     raceHub.on("RaceResultSubmitted", (payload) => {
-      if (String(payload?.raceId) === String(curId())) {
-        setPhase("confirmed");
+      if (String(payload?.raceId) === String(cur())) {
         setWinner(payload.winningHorseId);
+        setPhase("official");
       }
     }).then((u) => unsub.push(u));
     raceHub.on("RaceFinished", (payload) => {
-      if (String(payload?.raceId) === String(curId())) {
-        setPhase("resolved");
-      }
+      if (String(payload?.raceId) === String(cur())) setPhase("resolved");
     }).then((u) => unsub.push(u));
+
+    raceHub.subscribeConnectionState((s) => {
+      setHubState(s);
+      if (s === "reconnected") refreshPlan(cur());
+    });
+    unsub.push(() => raceHub.subscribeConnectionState(() => {}));
+
     raceHub.joinRace(selectedId);
     return () => {
       raceHub.leaveRace(selectedId);
@@ -107,36 +115,49 @@ export default function RaceSimulationPage() {
     };
   }, [selectedId]);
 
-  const horses = useMemo(() => {
-    const arr = Array.isArray(plan?.horses) ? plan.horses : [];
-    return arr
-      .map((h) => ({ ...h, finishTime: Number(h.finishTimeSeconds ?? h.FinishTimeSeconds ?? 60) }))
-      .sort((a, b) => a.finishTime - b.finishTime);
-  }, [plan]);
+  const horses = useMemo(() => (Array.isArray(plan?.horses) ? plan.horses : []), [plan]);
+  const byId = useMemo(() => new Map(horses.map((h) => [String(h.horseId), h])), [horses]);
+  const startsAtEpoch = Number(plan?.startsAtEpoch ?? 0);
+  const durationMs = Number(plan?.durationMs ?? 0);
+  const elapsedMs = startsAtEpoch ? now - startsAtEpoch : -1;
+  const countdownMs = startsAtEpoch ? startsAtEpoch - now : 0;
+  const maxLaps = Math.max(1, Number(plan?.laps ?? 1));
 
-  const laps = Math.max(1, Number(plan?.laps ?? plan?.Laps ?? 1));
-  const epoch = Number(plan?.actualStartTimeEpoch ?? plan?.ActualStartTimeEpoch ?? 0);
-  const elapsed = epoch ? now / 1000 - epoch : -1;
-  const maxFinish = horses.length ? horses[horses.length - 1].finishTime : 0;
-
+  // tự suy phase từ đồng hồ
   useEffect(() => {
-    // tự suy phase từ đồng hồ khi còn thiếu hub (e.g. mở trang giữa trận)
-    if (!epoch) return;
-    if (elapsed < 0) return; // chưa bắt đầu — giữ nguyên trạng thái
-    if (elapsed >= maxFinish) setPhase((p) => (p === "waiting" || p === "racing" ? "finished" : p));
-    else setPhase((p) => (p === "waiting" ? "racing" : p));
+    if (!plan) { setPhase("loading"); return; }
+    if (validation.length > 0) { setPhase("invalid"); return; }
+    if (!startsAtEpoch) { setPhase("gate"); return; }
+    if (elapsedMs < 0) { setPhase("countdown"); return; }
+    if (elapsedMs >= durationMs) setPhase((p) => (p === "official" || p === "resolved" ? p : "finished"));
+    else setPhase((p) => (p === "racing" ? p : "racing"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, plan]);
 
-  const winHorse =
-    winner && horses
-      ? horses.find((h) => String(h.horseId ?? h.HorseId) === String(winner))
-      : horses[0];
+  // Ngựa thắng & xếp hạng hiển thị
+  const provisionalWinnerId = useMemo(
+    () => (plan?.finishOrder && plan.finishOrder.length ? plan.finishOrder[0] : null),
+    [plan],
+  );
+  const officialWinnerId = winner || provisionalWinnerId;
+  const winnerName = byId.get(String(officialWinnerId))?.name ?? "—";
 
-  const runningStates = horses.map((h) => computeHorse(h, elapsed, laps));
+  const displayRanking = useMemo(() => {
+    if (phase === "official" || phase === "resolved" || (phase === "finished" && ranking.length === 0)) {
+      // dùng thứ tự chính thức của backend
+      return (plan?.finishOrder ?? [])
+        .map((id, i) => {
+          const h = byId.get(String(id));
+          return { horseId: id, name: h?.name ?? "—", color: h?.color, lane: h?.lane ?? i + 1, distance: plan?.trackLength ?? 0, lap: maxLaps, finished: true, finishTimeMs: h?.finishTimeMs };
+        });
+    }
+    return ranking;
+  }, [phase, ranking, plan, byId, maxLaps]);
+
+  const top3 = displayRanking.slice(0, 3);
 
   return (
-    <div className="page" style={{ maxWidth: 1000, margin: "0 auto", padding: "20px 0" }}>
+    <div className="page" style={{ maxWidth: 1080, margin: "0 auto", padding: "20px 0" }}>
       <h1 style={{ margin: "0 0 4px", fontSize: 24, color: "#172033" }}>🐎 Theo dõi cuộc đua</h1>
       <p style={{ margin: "0 0 20px", fontSize: 13, color: "#657086" }}>
         Mô phỏng trực tiếp giống game đua ngựa — tự bắt đầu khi admin khai cuộc đua.
@@ -151,17 +172,10 @@ export default function RaceSimulationPage() {
         >
           {races.length === 0 && <option value="">Đang tải danh sách...</option>}
           {races.map((r) => (
-            <option key={r.id ?? r.Id} value={r.id ?? r.Id}>
-              {r.name ?? r.Name}
-            </option>
+            <option key={r.id ?? r.Id} value={r.id ?? r.Id}>{r.name ?? r.Name}</option>
           ))}
         </select>
-        <button
-          onClick={() => refreshPlan(selectedId)}
-          style={{ padding: "10px 18px", borderRadius: 10, border: "1px solid rgba(143,100,32,0.3)", background: "#fff", cursor: "pointer", fontSize: 13, color: "#172033", fontWeight: 600 }}
-        >
-          🔄 Làm mới
-        </button>
+        <button onClick={() => refreshPlan(selectedId)} style={{ padding: "10px 18px", borderRadius: 10, border: "1px solid rgba(143,100,32,0.3)", background: "#fff", cursor: "pointer", fontSize: 13, color: "#172033", fontWeight: 600 }}>🔄 Làm mới</button>
       </div>
 
       {planError && (
@@ -170,82 +184,88 @@ export default function RaceSimulationPage() {
         </div>
       )}
 
-      {!plan ? (
-        <p style={{ color: "#657086", fontSize: 14 }}>Đang tải kế hoạch mô phỏng...</p>
-      ) : (
-        <>
-          {/* Thanh trạng thái */}
-          <div
-            style={{
-              display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
-              padding: "10px 16px", borderRadius: 12, marginBottom: 14,
-              background: phaseInfo[phase].bg, border: "1px solid rgba(143,100,32,0.15)",
-            }}
-          >
-            <span style={{ width: 9, height: 9, borderRadius: "50%", background: phaseInfo[phase].color, animation: phase === "racing" ? "pulse 1s infinite" : "none" }} />
-            <strong style={{ color: phaseInfo[phase].color, fontSize: 14 }}>{phaseInfo[phase].label}</strong>
-            {phase !== "waiting" && elapsed >= 0 && (
-              <span style={{ marginLeft: "auto", fontSize: 13, color: "#172033" }}>
-                ⏱ {Math.max(0, maxFinish - Math.max(0, elapsed)).toFixed(0)}s còn lại
-              </span>
-            )}
-          </div>
+      {/* Thanh trạng thái */}
+      {plan && !planError && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "10px 16px", borderRadius: 12, marginBottom: 14, background: PHASES[phase].bg, border: "1px solid rgba(143,100,32,0.15)" }}>
+          <span style={{ width: 9, height: 9, borderRadius: "50%", background: PHASES[phase].color, animation: phase === "racing" ? "pulse 1s infinite" : "none" }} />
+          <strong style={{ color: PHASES[phase].color, fontSize: 14 }}>{PHASES[phase].label}</strong>
+          {phase === "countdown" && <span style={{ fontSize: 15, fontWeight: 700, color: "#b45309" }}>⏳ {formatCountdown(countdownMs)}</span>}
+          {phase === "racing" && elapsedMs >= 0 && (
+            <span style={{ marginLeft: "auto", fontSize: 13, color: "#172033" }}>
+              ⏱ {(elapsedMs / 1000).toFixed(1)}s · 🥇 {ranking[0]?.name ?? "…"}
+            </span>
+          )}
+          {phase === "finished" && (
+            <span style={{ marginLeft: "auto", fontSize: 13, color: "#7c3aed", fontWeight: 600 }}>🏆 {winnerName}</span>
+          )}
+          {hubState === "reconnecting" && (
+            <span style={{ marginLeft: "auto", fontSize: 12, color: "#b45309", fontWeight: 600 }}>⚠ Đang kết nối lại...</span>
+          )}
+        </div>
+      )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 260px", gap: 16, alignItems: "start" }}>
-            <SimulationCanvas
-              plan={plan}
-              onFinish={(winnerId) => { setWinner(winnerId); setPhase("finished"); }}
+      {!plan && !planError ? (
+        <p style={{ color: "#657086", fontSize: 14 }}>Đang tải kế hoạch mô phỏng...</p>
+      ) : phase === "invalid" ? (
+        <div style={{ padding: 16, borderRadius: 12, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)", color: "#b91c1c", fontSize: 13 }}>
+          <strong>Không thể phát mô phỏng — script không hợp lệ:</strong>
+          <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>{validation.map((v, i) => <li key={i}>{v}</li>)}</ul>
+        </div>
+      ) : (
+        <div style={{ position: "relative" }}>
+          {phase === "countdown" && (
+            <div style={{ position: "absolute", inset: 0, zIndex: 5, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+              <div style={{ background: "rgba(15,12,8,0.55)", borderRadius: 16, padding: "18px 32px", color: "#fff", fontSize: 34, fontWeight: 800 }}>
+                BẮT ĐẦU SAU {formatCountdown(countdownMs)}
+              </div>
+            </div>
+          )}
+          {(phase === "finished" || phase === "official") && top3.length > 0 && (
+            <div style={{ position: "absolute", inset: 0, zIndex: 6, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+              <div style={{ background: "rgba(255,250,240,0.97)", borderRadius: 16, boxShadow: "0 16px 48px rgba(26,22,19,0.25)", padding: "20px 26px", minWidth: 260, border: "1px solid rgba(230,165,74,0.5)" }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: "#7c3aed" }}>
+                  {phase === "official" ? "🏆 KẾT QUẢ CHÍNH THỨC" : "🏁 TOP 3 (chờ xác nhận)"}
+                </div>
+                {top3.map((h, i) => (
+                  <div key={String(h.horseId)} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 0" }}>
+                    <span style={{ width: 22, height: 22, borderRadius: "50%", background: i === 0 ? "#e6a54a" : i === 1 ? "#cbd5e1" : "#d97706", color: "#172033", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>{i + 1}</span>
+                    <strong style={{ fontSize: 14, color: "#172033" }}>{h.name}</strong>
+                    {h.finishTimeMs ? <span style={{ marginLeft: "auto", fontSize: 12, color: "#657086" }}>{(h.finishTimeMs / 1000).toFixed(1)}s</span> : null}
+                  </div>
+                ))}
+                <div style={{ marginTop: 10, fontSize: 12, color: "#657086" }}>
+                  {phase === "finished" ? "Trọng tài đang xác nhận kết quả..." : `Người thắng: ${winnerName}`}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 270px", gap: 16, alignItems: "start" }}>
+            <RaceTrack
+              script={plan}
+              startsAtEpoch={startsAtEpoch}
+              onRanking={setRanking}
+              onFinished={() => setPhase((p) => (p === "racing" ? "finished" : p))}
             />
 
             {/* Bảng xếp hạng */}
             <div style={{ border: "1px solid rgba(143,100,32,0.16)", borderRadius: 14, background: "rgba(255,250,240,0.96)", overflow: "hidden" }}>
-              <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(143,100,32,0.1)", fontWeight: 700, fontSize: 13, color: "#172033" }}>
-                Bảng xếp hạng
-              </div>
+              <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(143,100,32,0.1)", fontWeight: 700, fontSize: 13, color: "#172033" }}>Bảng xếp hạng</div>
               <div>
-                {runningStates.map((s, i) => {
-                  const h = s.horse;
-                  return (
-                    <div
-                      key={h.horseId ?? h.HorseId}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 8, padding: "8px 14px",
-                        borderBottom: i < runningStates.length - 1 ? "1px solid rgba(143,100,32,0.06)" : "none",
-                        background: phase === "confirmed" && String(winHorse?.horseId ?? winHorse?.HorseId) === String(h.horseId ?? h.HorseId) ? "rgba(16,185,129,0.08)" : "transparent",
-                      }}
-                    >
-                      <span style={{ width: 20, height: 20, borderRadius: "50%", background: i < 3 ? "#e6a54a" : "#eef0f3", color: i < 3 ? "#172033" : "#657086", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>
-                        {i + 1}
-                      </span>
-                      <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#172033", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {h.name ?? h.Name}
-                      </span>
-                      <span style={{ fontSize: 11, color: "#657086" }}>
-                        {s.finished ? "🏁 Đích" : `Lap ${s.lap}/${laps}`}
-                      </span>
-                    </div>
-                  );
-                })}
+                {displayRanking.map((h, i) => (
+                  <div key={String(h.horseId)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderBottom: i < displayRanking.length - 1 ? "1px solid rgba(143,100,32,0.06)" : "none", background: phase === "official" && String(h.horseId) === String(officialWinnerId) ? "rgba(16,185,129,0.1)" : "transparent" }}>
+                    <span style={{ width: 20, height: 20, borderRadius: "50%", background: i < 3 ? "#e6a54a" : "#eef0f3", color: i < 3 ? "#172033" : "#657086", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>{i + 1}</span>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#172033", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</span>
+                    <span style={{ fontSize: 11, color: "#657086" }}>{h.finished ? "🏁 Đích" : `Lap ${h.lap}/${maxLaps}`}</span>
+                  </div>
+                ))}
               </div>
               <div style={{ padding: "10px 14px", fontSize: 12, color: "#657086", borderTop: "1px solid rgba(143,100,32,0.1)" }}>
-                {laps} vòng · Sân {plan.distance ?? plan.Distance ?? 0}m/vòng
+                {maxLaps} vòng · Sân {plan?.oneLapLength ?? 0}m/vòng
               </div>
             </div>
           </div>
-
-          {/* Banner kết quả */}
-          {(phase === "finished" || phase === "confirmed" || phase === "resolved") && winHorse && (
-            <div style={{ marginTop: 16, padding: "16px 20px", borderRadius: 14, background: "linear-gradient(135deg,rgba(230,165,74,0.14),rgba(255,250,240,0.5))", border: "1px solid rgba(230,165,74,0.4)", display: "flex", alignItems: "center", gap: 14 }}>
-              <span style={{ fontSize: 30 }}>🏆</span>
-              <div>
-                <strong style={{ fontSize: 18, color: "#172033" }}>{winHorse.name ?? winHorse.Name}</strong>
-                <span style={{ fontSize: 13, color: "#657086", display: "block", marginTop: 2 }}>
-                  {phase === "confirmed" ? "Trọng tài đã xác nhận ngựa thắng này." : phase === "resolved" ? "Cuộc đua kết thúc — tiền thưởng & dự đoán đã thanh toán." : "Đang chờ trọng tài xác nhận kết quả chính thức."}
-                </span>
-              </div>
-            </div>
-          )}
-        </>
+        </div>
       )}
     </div>
   );

@@ -79,27 +79,43 @@ public class RaceDetailResponse
     public Guid? WinnerOverrideHorseId { get; set; }
 }
 
-public class RaceSimulationResponse
+public class RaceSimulationScriptDto
 {
+    [JsonPropertyName("version")] public int Version { get; set; } = 1;
     [JsonPropertyName("raceId")] public Guid RaceId { get; set; }
     [JsonPropertyName("raceName")] public string RaceName { get; set; } = string.Empty;
-    [JsonPropertyName("laps")] public int Laps { get; set; } = 2;
-    [JsonPropertyName("distance")] public int Distance { get; set; }
-    [JsonPropertyName("trackLength")] public int TrackLength { get; set; }
-    [JsonPropertyName("actualStartTime")] public DateTime? ActualStartTime { get; set; }
-    [JsonPropertyName("actualStartTimeEpoch")] public double ActualStartTimeEpoch { get; set; }
-    [JsonPropertyName("horses")] public List<HorseSimulationDto> Horses { get; set; } = new();
+    [JsonPropertyName("trackLength")] public double TrackLength { get; set; } // tổng quãng đường (m) = distance * laps
+    [JsonPropertyName("oneLapLength")] public double OneLapLength { get; set; }
+    [JsonPropertyName("laps")] public int Laps { get; set; } = 1;
+    [JsonPropertyName("baseSpeed")] public double BaseSpeed { get; set; } // m/s
+    [JsonPropertyName("seed")] public string Seed { get; set; } = string.Empty;
+    [JsonPropertyName("startsAtEpoch")] public double StartsAtEpoch { get; set; } // 0 = chưa bắt đầu
+    [JsonPropertyName("durationMs")] public long DurationMs { get; set; }
+    [JsonPropertyName("horses")] public List<RaceSimulationHorseScriptDto> Horses { get; set; } = new();
+    [JsonPropertyName("finishOrder")] public List<Guid> FinishOrder { get; set; } = new();
+    [JsonPropertyName("fingerprint")] public string Fingerprint { get; set; } = string.Empty;
 }
 
-public class HorseSimulationDto
+public class RaceSimulationHorseScriptDto
 {
     [JsonPropertyName("horseId")] public Guid HorseId { get; set; }
     [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
     [JsonPropertyName("color")] public string? Color { get; set; }
     [JsonPropertyName("gateNumber")] public int GateNumber { get; set; }
-    [JsonPropertyName("finishPosition")] public int FinishPosition { get; set; }
-    [JsonPropertyName("finishTimeSeconds")] public double FinishTimeSeconds { get; set; }
+    [JsonPropertyName("lane")] public int Lane { get; set; } // 1..8
+    [JsonPropertyName("winProbability")] public double WinProbability { get; set; }
+    [JsonPropertyName("seed")] public string Seed { get; set; } = string.Empty;
+    [JsonPropertyName("sectionMultipliers")] public double[] SectionMultipliers { get; set; } = new double[3];
+    [JsonPropertyName("finishTimeMs")] public long FinishTimeMs { get; set; }
     [JsonPropertyName("odds")] public decimal Odds { get; set; } = 1m;
+    [JsonPropertyName("checkpoints")] public List<RaceSimulationCheckpointDto> Checkpoints { get; set; } = new();
+}
+
+/// <summary>Điểm mốc đường đua: d = quãng đường đi được (m), t = thời gian tương ứng (ms).</summary>
+public class RaceSimulationCheckpointDto
+{
+    [JsonPropertyName("d")] public double D { get; set; }
+    [JsonPropertyName("t")] public double T { get; set; }
 }
 
 public class JockeyAssignedRaceResponse

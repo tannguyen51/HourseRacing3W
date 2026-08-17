@@ -204,18 +204,19 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
               </div>
 
               {/* Kế hoạch mô phỏng */}
-              {simulation?.horses?.length > 0 && started(st) && (
+              {simulation?.finishOrder?.length > 0 && simulation?.horses?.length > 0 && started(st) && (
                 <div style={{marginBottom:22}}>
                   <SectionTitle right={<span style={{fontSize:11,color:"#94a3b8"}}>Thứ tự dự kiến theo mô phỏng</span>}>🎬 Kế hoạch mô phỏng</SectionTitle>
                   <div style={{padding:"6px 14px",borderRadius:12,border:"1px solid rgba(230,165,74,0.35)",background:"rgba(255,250,240,0.6)"}}>
-                    {[...(simulation.horses ?? [])]
-                      .sort((a,b)=>(a.finishPosition ?? a.FinishPosition)-(b.finishPosition ?? b.FinishPosition))
-                      .map((h,i)=>(
-                        <div key={h.horseId ?? h.HorseId} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:i<(simulation.horses?.length??1)-1?"1px solid rgba(143,100,32,0.08)":"none",fontSize:13}}>
+                    {(simulation.finishOrder ?? [])
+                      .map((id) => (simulation.horses ?? []).find((h) => String(h.horseId ?? h.HorseId) === String(id)))
+                      .filter(Boolean)
+                      .map((h, i) => (
+                        <div key={h.horseId ?? h.HorseId} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:i<(simulation.finishOrder?.length??1)-1?"1px solid rgba(143,100,32,0.08)":"none",fontSize:13}}>
                           <span style={{width:22,height:22,borderRadius:"50%",background:i===0?"#e6a54a":i===1?"#cbd5e1":i===2?"#d97706":"#f1f5f9",color:"#172033",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{i+1}</span>
                           <strong style={{color:"#172033"}}>{h.name ?? h.Name}</strong>
                           {i===0 && <span style={{fontSize:11,color:"#b45309",fontWeight:600}}>🏆 dự kiến thắng</span>}
-                          <span style={{marginLeft:"auto",fontSize:11,color:"#657086"}}>≈ {fmtNum(h.finishTimeSeconds ?? h.FinishTimeSeconds)}s</span>
+                          <span style={{marginLeft:"auto",fontSize:11,color:"#657086"}}>≈ {fmtNum((h.finishTimeMs ?? h.FinishTimeMs ?? 0) / 1000)}s</span>
                         </div>
                       ))}
                   </div>

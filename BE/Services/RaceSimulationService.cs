@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using HorseRacing.Dtos;
 using HorseRacing.Models;
@@ -10,103 +11,217 @@ using HorseRacing.Services.Interfaces;
 namespace HorseRacing.Services;
 
 /// <summary>
-/// Sinh "kế hoạch mô phỏng" cho một cuộc đua một cách DETERMINISTIC (seed từ RaceId):
-/// mọi spectator/trọng tài đều nhận cùng thứ tự về đích. Nếu admin ép ngựa thắng
-/// (WinnerOverrideHorseId) thì ngựa đó luôn đứng hạng 1.
+/// Sinh "race_script" cho cuộc đua — backend là nguồn duy nhất quyết định kết quả.
+/// Script ổn định (được persist) nên mọi spectator sau refresh/reconnect đều thấy
+/// cùng một cuộc đua. Mô hình tốc độ gồm 3 đoạn theo quãng đường.
 /// </summary>
 public class RaceSimulationService : IRaceSimulationService
 {
     private readonly IRaceRepository _raceRepo;
     private readonly IRaceEntryRepository _entryRepo;
+    private readonly IUnitOfWork _unitOfWork;
+    private static readonly JsonSerializerOptions JsonOpts = new() { ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles };
 
-    public RaceSimulationService(IRaceRepository raceRepo, IRaceEntryRepository entryRepo)
+    public RaceSimulationService(IRaceRepository raceRepo, IRaceEntryRepository entryRepo, IUnitOfWork unitOfWork)
     {
         _raceRepo = raceRepo;
         _entryRepo = entryRepo;
+        _unitOfWork = unitOfWork;
     }
 
-    public async Task<ServiceResult<RaceSimulationResponse>> GetAsync(Guid raceId)
+    public async Task<ServiceResult<RaceSimulationScriptDto>> GetAsync(Guid raceId)
     {
         try
         {
             var race = await _raceRepo.GetByIdAsync(raceId);
             if (race == null)
-                return ServiceResult<RaceSimulationResponse>.Fail(404, "Không tìm thấy cuộc đua");
+                return ServiceResult<RaceSimulationScriptDto>.Fail(404, "Không tìm thấy cuộc đua");
 
             var entries = (await _entryRepo.GetByRaceAsync(raceId))
                 .Where(e => e.Status == RegistrationStatus.Approved && e.ScratchedAt == null)
-                .OrderBy(e => e.Id) // cố định thứ tự đầu vào để kế hoạch deterministic
+                .OrderBy(e => e.Id)
                 .ToList();
             if (entries.Count == 0)
-                return ServiceResult<RaceSimulationResponse>.Fail(400, "Cuộc đua chưa có ngựa tham gia để mô phỏng.");
+                return ServiceResult<RaceSimulationScriptDto>.Fail(400, "Cuộc đua chưa có ngựa tham gia để mô phỏng.");
 
-            return ServiceResult<RaceSimulationResponse>.Ok(BuildPlan(race, entries));
+            var fingerprint = RaceSimulationEngine.ComputeFingerprint(race, entries);
+
+            // dùng script đã persist nếu cấu hình (laps/ngựa/odds) chưa đổi
+            RaceSimulationScriptDto? script = null;
+            if (!string.IsNullOrEmpty(race.SimulationScriptJson))
+            {
+                try
+                {
+                    script = JsonSerializer.Deserialize<RaceSimulationScriptDto>(race.SimulationScriptJson, JsonOpts);
+                    if (script != null && script.Fingerprint != fingerprint) script = null;
+                }
+                catch { script = null; }
+            }
+
+            if (script == null)
+            {
+                script = RaceSimulationEngine.BuildScript(race, entries);
+                race.SimulationScriptJson = JsonSerializer.Serialize(script, JsonOpts);
+                race.UpdatedAt = DateTime.UtcNow;
+                await _raceRepo.UpdateAsync(race);
+                await _unitOfWork.SaveChangesAsync();
+            }
+
+            script.StartsAtEpoch = race.ActualStartTime is { } start
+                ? new DateTimeOffset(DateTime.SpecifyKind(start, DateTimeKind.Utc)).ToUnixTimeMilliseconds()
+                : 0;
+            return ServiceResult<RaceSimulationScriptDto>.Ok(script);
         }
         catch (Exception ex)
         {
-            return ServiceResult<RaceSimulationResponse>.Fail(500, $"Lỗi tạo kế hoạch mô phỏng: {ex.Message}");
+            return ServiceResult<RaceSimulationScriptDto>.Fail(500, $"Lỗi tạo kế hoạch mô phỏng: {ex.Message}");
         }
     }
+}
 
-    public static RaceSimulationResponse BuildPlan(Race race, List<RaceEntry> entries)
+/// <summary>Thuật toán pace 3 đoạn — thuần, deterministic, unit-test được.</summary>
+public static class RaceSimulationEngine
+{
+    public const int Version = 1;
+    public const int CheckpointCount = 60;
+    public const double Section1End = 0.35;
+    public const double Section2End = 0.70;
+
+    /// <summary>Đoạn 1 (0–0.35): tốc độ theo win probability → multiplier 0.90..1.10.</summary>
+    public static double ProbabilityMultiplier(double winProbability)
+        => Math.Round(0.90 + 0.20 * Math.Clamp(winProbability, 0, 1), 6);
+
+    /// <summary>Đoạn 2 (0.35–0.70): ngẫu nhiên có seed → multiplier 0.80..1.20.</summary>
+    public static double RandomMultiplier(SplitMix64 rng)
+        => Math.Round(0.80 + rng.NextDouble() * 0.40, 6);
+
+    /// <summary>Đoạn 3 (0.70–1.00): 50% mức cố định + 50% theo probability.</summary>
+    public static double FinishPaceMultiplier(double m1)
+        => Math.Round(0.5 * 1.0 + 0.5 * m1, 6);
+
+    public static double TimeAtDistanceSeconds(double d, double total, double baseSpeed, double m1, double m2, double m3)
     {
-        var rng = new SplitMix64(SeedFromGuid(race.Id));
+        var s1 = total * Section1End;
+        var s2 = total * (Section2End - Section1End);
+        if (d <= s1) return d / (baseSpeed * m1);
+        var t = s1 / (baseSpeed * m1);
+        d -= s1;
+        if (d <= s2) return t + d / (baseSpeed * m2);
+        t += s2 / (baseSpeed * m2);
+        d -= s2;
+        return t + d / (baseSpeed * m3);
+    }
 
-        RaceEntry? forcedWinner = null;
-        if (race.WinnerOverrideHorseId.HasValue && race.WinnerOverrideHorseId.Value != Guid.Empty)
+    public static double CalculateFinishSeconds(double total, double baseSpeed, double m1, double m2, double m3)
+        => TimeAtDistanceSeconds(total, total, baseSpeed, m1, m2, m3);
+
+    public static List<RaceSimulationCheckpointDto> GenerateCheckpoints(
+        double total, double baseSpeed, double m1, double m2, double m3, double factor = 1.0, int count = CheckpointCount)
+    {
+        var pts = new List<RaceSimulationCheckpointDto>(count + 1);
+        for (var k = 0; k <= count; k++)
         {
-            var idx = entries.FindIndex(e => e.HorseId == race.WinnerOverrideHorseId.Value);
-            if (idx >= 0)
-            {
-                forcedWinner = entries[idx];
-                entries.RemoveAt(idx);
-            }
+            var d = Math.Round(total * k / count, 3);
+            var tMs = Math.Round(TimeAtDistanceSeconds(d, total, baseSpeed, m1, m2, m3) * factor * 1000.0, 1);
+            pts.Add(new RaceSimulationCheckpointDto { D = d, T = tMs });
         }
+        return pts;
+    }
 
-        // Fisher-Yates shuffle thuần (có seed): kết quả ghĩ lại là như nhau ở mọi lần gọi
-        for (var i = entries.Count - 1; i > 0; i--)
-        {
-            var j = rng.NextInt(i + 1);
-            (entries[i], entries[j]) = (entries[j], entries[i]);
-        }
-        if (forcedWinner != null)
-            entries.Insert(0, forcedWinner);
+    public static RaceSimulationScriptDto BuildScript(Race race, List<RaceEntry> entries)
+    {
+        var raceSeed = SeedFromGuid(race.Id);
+        var rng = new SplitMix64(raceSeed);
+        var laps = Math.Max(1, race.Laps);
+        var oneLap = Math.Max(10, race.Distance);
+        var total = oneLap * laps;
+        var baseSpeed = total / (58 + rng.NextDouble() * 14); // ≈58–72s ở multiplier 1
 
-        var horses = new List<HorseSimulationDto>();
-        var time = 58 + rng.NextDouble() * 14; // thời gian về đích của ngựa dẫn đầu
-        for (var i = 0; i < entries.Count; i++)
+        // win probability từ tỷ lệ cược: odds thấp hơn → khả năng thắng cao hơn
+        var ordered = entries
+            .Select(e => new { Entry = e, Weight = 1.0 / Math.Max(1.0, (double)e.Odds) })
+            .ToList();
+        var invSum = ordered.Sum(x => x.Weight);
+        var probById = ordered.ToDictionary(x => x.Entry.HorseId, x => x.Weight / invSum);
+
+        var horses = new List<RaceSimulationHorseScriptDto>();
+        var finishSecById = new Dictionary<Guid, double>();
+        var idx = 0;
+        foreach (var item in ordered)
         {
-            var entry = entries[i];
-            horses.Add(new HorseSimulationDto
+            var entry = item.Entry;
+            var horseRng = new SplitMix64(raceSeed ^ LeftRotate(SeedFromGuid(entry.HorseId), 13));
+            var prob = probById[entry.HorseId];
+            var m1 = ProbabilityMultiplier(prob);
+            var m2 = RandomMultiplier(horseRng);
+            var m3 = FinishPaceMultiplier(m1);
+            var finishSec = CalculateFinishSeconds(total, baseSpeed, m1, m2, m3);
+            finishSecById[entry.HorseId] = finishSec;
+
+            horses.Add(new RaceSimulationHorseScriptDto
             {
                 HorseId = entry.HorseId,
                 Name = entry.Horse?.Name ?? entry.HorseId.ToString(),
                 Color = entry.Horse?.Color,
-                GateNumber = entry.GateNumber ?? i + 1,
-                FinishPosition = i + 1,
-                FinishTimeSeconds = Math.Round(time, 2),
-                Odds = entry.Odds
+                GateNumber = entry.GateNumber ?? idx + 1,
+                WinProbability = prob,
+                Seed = Convert.ToHexString(entry.HorseId.ToByteArray()),
+                SectionMultipliers = new[] { m1, m2, m3 },
+                FinishTimeMs = (long)Math.Round(finishSec * 1000),
+                Odds = entry.Odds,
             });
-            time += 0.35 + rng.NextDouble() * 0.9;
+            idx++;
         }
 
-        var start = race.ActualStartTime;
-        var utcStart = start.HasValue ? DateTime.SpecifyKind(start.Value, DateTimeKind.Utc) : (DateTime?)null;
-        return new RaceSimulationResponse
+        // ép ngựa thắng: nén timeline của ngựa đó để chắc chắn về đích sớm nhất
+        var factorById = new Dictionary<Guid, double>();
+        if (race.WinnerOverrideHorseId is { } forcedId && forcedId != Guid.Empty && finishSecById.TryGetValue(forcedId, out var forcedSec))
         {
+            var othersMin = finishSecById.Where(kv => kv.Key != forcedId).Select(kv => kv.Value).DefaultIfEmpty(forcedSec).Min();
+            var target = Math.Max(1.0, othersMin - 0.25);
+            factorById[forcedId] = Math.Max(0.05, target / forcedSec);
+        }
+
+        foreach (var h in horses)
+        {
+            var factor = factorById.GetValueOrDefault(h.HorseId, 1.0);
+            var (m1, m2, m3) = (h.SectionMultipliers[0], h.SectionMultipliers[1], h.SectionMultipliers[2]);
+            h.FinishTimeMs = (long)Math.Round(CalculateFinishSeconds(total, baseSpeed, m1, m2, m3) * factor * 1000);
+            h.Checkpoints = GenerateCheckpoints(total, baseSpeed, m1, m2, m3, factor);
+        }
+
+        var finishOrder = horses.OrderBy(h => h.FinishTimeMs).Select(h => h.HorseId).ToList();
+        var laneByHorseId = finishOrder.Select((id, i) => (id, lane: i % 8 + 1)).ToDictionary(x => x.id, x => x.lane);
+        foreach (var h in horses)
+            h.Lane = laneByHorseId[h.HorseId];
+
+        return new RaceSimulationScriptDto
+        {
+            Version = Version,
             RaceId = race.Id,
             RaceName = race.Name,
-            Laps = Math.Max(1, race.Laps),
-            Distance = race.Distance,
-            TrackLength = race.Distance,
-            ActualStartTime = utcStart,
-            // 0 = chưa bắt đầu (chưa có ActualStartTime); client dùng epoch làm đồng hồ chạy
-            ActualStartTimeEpoch = utcStart.HasValue ? new DateTimeOffset(utcStart.Value).ToUnixTimeSeconds() : 0,
-            Horses = horses
+            TrackLength = total,
+            OneLapLength = oneLap,
+            Laps = laps,
+            BaseSpeed = Math.Round(baseSpeed, 4),
+            Seed = Convert.ToHexString(race.Id.ToByteArray()),
+            DurationMs = horses.Count > 0 ? horses.Max(h => h.FinishTimeMs) : 0,
+            Horses = horses,
+            FinishOrder = finishOrder,
+            Fingerprint = ComputeFingerprint(race, entries),
         };
     }
 
-    private static ulong SeedFromGuid(Guid id)
+    /// <summary>Dấu vân tay cấu hình — nếu đổi (laps/ngựa/odds) thì script phải sinh lại.</summary>
+    public static string ComputeFingerprint(Race race, List<RaceEntry> entries)
+    {
+        var participant = string.Join("|", entries
+            .OrderBy(e => e.Id)
+            .Select(e => $"{e.HorseId}:{e.Odds:0.####}:{e.GateNumber}"));
+        return $"{race.Laps}|{race.WinnerOverrideHorseId}|{race.Distance}|{race.MaxParticipants}|{participant}";
+    }
+
+    public static ulong SeedFromGuid(Guid id)
     {
         var b = id.ToByteArray();
         unchecked
@@ -114,10 +229,12 @@ public class RaceSimulationService : IRaceSimulationService
             return BitConverter.ToUInt64(b, 0) ^ (BitConverter.ToUInt64(b, 8) * 0x9E3779B97F4A7C15UL);
         }
     }
+
+    private static ulong LeftRotate(ulong v, int bits) => (v << bits) | (v >> (64 - bits));
 }
 
-/// <summary>PRNG SplitMix64 — deterministic, dùng seed cố định cho từng cuộc đua.</summary>
-internal sealed class SplitMix64
+/// <summary>PRNG SplitMix64 — deterministic theo seed.</summary>
+public sealed class SplitMix64
 {
     private ulong _state;
 

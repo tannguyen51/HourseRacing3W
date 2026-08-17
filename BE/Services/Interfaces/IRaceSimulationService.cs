@@ -6,5 +6,5 @@ namespace HorseRacing.Services.Interfaces;
 
 public interface IRaceSimulationService
 {
-    Task<ServiceResult<RaceSimulationResponse>> GetAsync(Guid raceId);
+    Task<ServiceResult<RaceSimulationScriptDto>> GetAsync(Guid raceId);
 }

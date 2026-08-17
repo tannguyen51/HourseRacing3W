@@ -137,13 +137,12 @@ export default function RefereeRaceReportPage() {
     getRaceSimulation(selectedRaceId)
       .then((p) => {
         if (cancelled) return;
+        const order = Array.isArray(p?.finishOrder) ? p.finishOrder : [];
         const hrs = Array.isArray(p?.horses) ? p.horses : [];
-        if (hrs.length === 0) return;
-        const winner = [...hrs].sort(
-          (a, b) => (a.finishTimeSeconds ?? a.FinishTimeSeconds ?? Infinity) - (b.finishTimeSeconds ?? b.FinishTimeSeconds ?? Infinity)
-        )[0];
-        const wid = winner.horseId ?? winner.HorseId;
-        setSimWinner({ horseId: wid, name: winner.name ?? winner.Name ?? "" });
+        if (order.length === 0) return;
+        const wid = order[0];
+        const winner = hrs.find((h) => String(h.horseId) === String(wid));
+        setSimWinner({ horseId: wid, name: winner?.name ?? "" });
         // chỉ tự điền nếu trọng tài chưa tự chọn
         setResultWinningHorseId((prev) => (prev === "" ? wid : prev));
       })

@@ -8,6 +8,19 @@ let connection = null;
 let connectPromise = null;
 let isDisposedByUser = false;
 const joinedGroups = new Set();
+const stateListeners = new Set();
+
+function notifyState(state) {
+  stateListeners.forEach((fn) => {
+    try { fn(state); } catch { /* ignore */ }
+  });
+}
+
+/** Đăng ký nhận trạng thái kết nối ('connecting'|'connected'|'reconnecting'|'reconnected'|'closed'); trả về hàm hủy đăng ký. */
+export function subscribeConnectionState(cb) {
+  stateListeners.add(cb);
+  return () => stateListeners.delete(cb);
+}
 
 function getConnected() {
   return connection && connection.state === signalR.HubConnectionState.Connected ? connection : null;
@@ -31,11 +44,14 @@ export async function connect() {
       .withAutomaticReconnect()
       .build();
 
-    connection.onreconnected(rejoinAll);
-    connection.onreconnecting(() => { /* giữ trạng thái */ });
+    connection.onreconnecting(() => notifyState("reconnecting"));
+    connection.onreconnected(() => { notifyState("reconnected"); rejoinAll(); });
+    connection.onclose(() => notifyState("closed"));
 
+    notifyState("connecting");
     try {
       await connection.start();
+      notifyState("connected");
       await rejoinAll();
     } catch {
       // Không ném lỗi — trang vẫn hoạt động qua fetch; hub chỉ là push bổ sung

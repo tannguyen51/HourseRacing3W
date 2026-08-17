@@ -64,6 +64,10 @@ public class Race
 
     public Guid? WinnerOverrideHorseId { get; set; }
 
+    /// <summary>race_script JSON được sinh & persist — mọi viewer xem cùng một kết quả.</summary>
+    [MaxLength(40000)]
+    public string? SimulationScriptJson { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
