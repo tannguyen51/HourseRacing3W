@@ -28,7 +28,7 @@ function OddsEditor({ raceId, horseId, odds, setMessage }) {
     setSaving(false);
   };
   return (
-    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+    <span style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
       <input type="number" step="0.01" min="1" value={val} onChange={(e) => setVal(e.target.value)}
         style={{ width: 64, padding: "4px 8px", borderRadius: 8, border: "1px solid rgba(143,100,32,0.25)", fontSize: 13, background: "#fff" }} />
       <button onClick={save} disabled={saving} style={{ padding: "4px 10px", borderRadius: 8, border: "none", background: "#e6a54a", color: "#fff", cursor: "pointer", fontSize: 11, fontWeight: 600 }}>{saving ? "..." : "Lưu"}</button>
