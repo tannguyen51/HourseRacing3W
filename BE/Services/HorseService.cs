@@ -467,6 +467,13 @@ public class HorseService : IHorseService
             ? await _jockeys.GetByUserIdAsync(userId)
             : null;
         var assignedJockeyId = acceptedInvitation?.JockeyId ?? registeringJockey?.Id;
+        var assignedJockey = acceptedInvitation?.Jockey ?? registeringJockey;
+        if (assignedJockeyId.HasValue && !JockeyWeightEligibility.IsEligible(assignedJockey?.Weight))
+        {
+            return ServiceResult<object>.Fail(
+                StatusCodes.Status400BadRequest,
+                JockeyWeightEligibility.ErrorMessage(assignedJockey?.Weight));
+        }
         if (assignedJockeyId.HasValue &&
             await _raceEntries.HasJockeyScheduleConflictAsync(assignedJockeyId.Value,
                 race.ScheduledAt, race.ScheduledEndAt ?? race.ScheduledAt.AddMinutes(30)))

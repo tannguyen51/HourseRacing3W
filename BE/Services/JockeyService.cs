@@ -123,7 +123,9 @@ public class JockeyService : IJockeyService
             invitation.RaceId = entry.RaceId;
             invitation.Race = entry.Race;
             repairedInvitation = true;
-            if (invitation.Status == JockeyInvitationStatus.Accepted && entry.JockeyId != jockey.Id)
+            if (invitation.Status == JockeyInvitationStatus.Accepted &&
+                entry.JockeyId != jockey.Id &&
+                JockeyWeightEligibility.IsEligible(jockey.Weight))
             {
                 entry.JockeyId = jockey.Id;
                 entry.JockeyConfirmed = true;
@@ -217,6 +219,13 @@ public class JockeyService : IJockeyService
                 return ServiceResult<object>.Fail(
                     StatusCodes.Status409Conflict,
                     "Kỵ sĩ này đã có cuộc đua trùng thời gian");
+            }
+
+            if (!JockeyWeightEligibility.IsEligible(jockey.Weight))
+            {
+                return ServiceResult<object>.Fail(
+                    StatusCodes.Status400BadRequest,
+                    JockeyWeightEligibility.ErrorMessage(jockey.Weight));
             }
 
             entry.JockeyId = jockey.Id;
