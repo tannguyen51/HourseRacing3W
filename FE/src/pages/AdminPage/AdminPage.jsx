@@ -21,7 +21,9 @@ import {
   rejectRaceResult,
   getPendingRaceEntries,
   approveRaceEntry,
+  approveRaceWithdrawal,
   rejectRaceEntry,
+  rejectRaceWithdrawal,
   rejectJockey,
   setUserActive,
   startRace,
@@ -1518,30 +1520,34 @@ function RegistrationManagement() {
 
   const approveEntry = async (entry) => {
     const id = entry.entryId ?? entry.EntryId;
+    const isWithdrawal = (entry.requestType ?? entry.RequestType) === "Withdrawal";
     try {
-      await approveRaceEntry(id);
-      setMessage("Đã phê duyệt đăng ký ngựa vào cuộc đua.");
+      if (isWithdrawal) await approveRaceWithdrawal(id);
+      else await approveRaceEntry(id);
+      setMessage(isWithdrawal ? "Đã phê duyệt yêu cầu rút lui." : "Đã phê duyệt đăng ký ngựa vào cuộc đua.");
       load();
     } catch (err) { setMessage(err.message); }
   };
 
   const rejectEntry = async (entry) => {
     const id = entry.entryId ?? entry.EntryId;
-    const reason = window.prompt("Lý do từ chối (tùy chọn):");
+    const isWithdrawal = (entry.requestType ?? entry.RequestType) === "Withdrawal";
+    const reason = window.prompt(isWithdrawal ? "Lý do từ chối yêu cầu rút lui (tùy chọn):" : "Lý do từ chối (tùy chọn):");
     if (reason === null) return;
     try {
-      await rejectRaceEntry(id, reason || "Bị từ chối bởi admin");
-      setMessage("Đã từ chối đăng ký.");
+      if (isWithdrawal) await rejectRaceWithdrawal(id, reason || "Yêu cầu rút lui bị từ chối bởi admin");
+      else await rejectRaceEntry(id, reason || "Bị từ chối bởi admin");
+      setMessage(isWithdrawal ? "Đã từ chối yêu cầu rút lui." : "Đã từ chối đăng ký.");
       load();
     } catch (err) { setMessage(err.message); }
   };
 
   return (
     <>
-      <PageTitle eyebrow="Quản lý giải đấu" title="Phê duyệt đăng ký" description="Xem xét và phê duyệt đăng ký ngựa vào cuộc đua." />
+      <PageTitle eyebrow="Quản lý giải đấu" title="Phê duyệt đăng ký" description="Xem xét đăng ký ngựa và yêu cầu rút khỏi cuộc đua." />
       <div className="admin-toolbar">
         <input placeholder="Tìm kiếm theo ngựa, chủ ngựa, kỵ sĩ hoặc giải đấu..." value={query} onChange={(e) => setQuery(e.target.value)} />
-        <span>{filteredEntries.length} đăng ký</span>
+        <span>{filteredEntries.length} yêu cầu</span>
       </div>
       <Notice message={message} />
 
@@ -1551,6 +1557,8 @@ function RegistrationManagement() {
             <tbody>
               {filteredEntries.map((item) => {
                 const id = item.entryId ?? item.EntryId;
+                const isWithdrawal = (item.requestType ?? item.RequestType) === "Withdrawal";
+                const withdrawalReason = item.withdrawalReason ?? item.WithdrawalReason;
                 return (
                   <tr key={id}>
                     <td><strong>{item.horseName ?? item.HorseName ?? "N/A"}</strong></td>
@@ -1558,7 +1566,10 @@ function RegistrationManagement() {
                     <td>{item.jockeyName ?? item.JockeyName ?? "Chưa có"}</td>
                     <td>{item.tournamentName ?? item.TournamentName ?? "-"}</td>
                     <td>{item.raceName ?? item.RaceName ?? "-"}</td>
-                    <td><span className="status status--pending">Chờ duyệt</span></td>
+                    <td>
+                      <span className="status status--pending">{isWithdrawal ? "Yêu cầu rút lui" : "Chờ duyệt"}</span>
+                      {isWithdrawal && <small style={{display:"block",marginTop:6,color:"#b45309",maxWidth:260}}>Lý do: {withdrawalReason || "—"}</small>}
+                    </td>
                     <td>
                       <div className="admin-actions">
                         <button onClick={() => approveEntry(item)}>Phê duyệt</button>
@@ -1569,7 +1580,7 @@ function RegistrationManagement() {
                 );
               })}
               {filteredEntries.length === 0 && (
-                <tr><td colSpan={7}>Không có đăng ký ngựa nào đang chờ duyệt.</td></tr>
+                <tr><td colSpan={7}>Không có đăng ký hoặc yêu cầu rút lui nào đang chờ duyệt.</td></tr>
               )}
             </tbody>
           </table>

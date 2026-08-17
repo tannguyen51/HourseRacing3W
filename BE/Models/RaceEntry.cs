@@ -42,6 +42,18 @@ public class RaceEntry
     [MaxLength(500)]
     public string? ScratchReason { get; set; }
 
+    public RaceWithdrawalStatus? WithdrawalStatus { get; set; }
+
+    public DateTime? WithdrawalRequestedAt { get; set; }
+
+    [MaxLength(500)]
+    public string? WithdrawalReason { get; set; }
+
+    public DateTime? WithdrawalReviewedAt { get; set; }
+
+    [MaxLength(500)]
+    public string? WithdrawalReviewNote { get; set; }
+
     [Column(TypeName = "decimal(18,2)")]
     public decimal? WeightCarried { get; set; } // kg
 

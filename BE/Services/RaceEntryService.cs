@@ -104,6 +104,67 @@ public class RaceEntryService : IRaceEntryService
         return ServiceResult<bool>.Ok(true);
     }
 
+    public async Task<ServiceResult<bool>> RequestWithdrawalAsync(Guid userId, Guid entryId, string? reason)
+    {
+        var owner = await _owners.GetByUserIdAsync(userId);
+        if (owner == null)
+            return ServiceResult<bool>.Fail(404, "Không tìm thấy hồ sơ chủ sở hữu");
+
+        var entry = await _entries.GetByIdAsync(entryId);
+        if (entry == null || entry.Horse?.OwnerId != owner.Id)
+            return ServiceResult<bool>.Fail(404, "Không tìm thấy đăng ký cuộc đua của bạn");
+        if (entry.Status != RegistrationStatus.Approved)
+            return ServiceResult<bool>.Fail(400, "Chỉ đăng ký đã được duyệt mới có thể yêu cầu rút lui");
+        if (entry.ScratchedAt.HasValue)
+            return ServiceResult<bool>.Fail(400, "Ngựa đã rút khỏi cuộc đua này");
+        if (entry.Race?.Status is RaceStatus.InProgress or RaceStatus.Finished or RaceStatus.Cancelled)
+            return ServiceResult<bool>.Fail(400, "Không thể yêu cầu rút lui khi cuộc đua đã bắt đầu hoặc kết thúc");
+
+        var normalizedReason = reason?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedReason) || normalizedReason.Length < 3)
+            return ServiceResult<bool>.Fail(400, "Lý do rút lui phải có ít nhất 3 ký tự");
+        if (normalizedReason.Length > 500)
+            return ServiceResult<bool>.Fail(400, "Lý do rút lui không được vượt quá 500 ký tự");
+        if (entry.WithdrawalStatus == RaceWithdrawalStatus.Pending)
+            return ServiceResult<bool>.Fail(409, "Yêu cầu rút lui đang chờ admin phê duyệt");
+
+        entry.WithdrawalStatus = RaceWithdrawalStatus.Pending;
+        entry.WithdrawalReason = normalizedReason;
+        entry.WithdrawalRequestedAt = DateTime.UtcNow;
+        entry.WithdrawalReviewedAt = null;
+        entry.WithdrawalReviewNote = null;
+        await _entries.UpdateAsync(entry);
+        await _unitOfWork.SaveChangesAsync();
+        return ServiceResult<bool>.Ok(true);
+    }
+
+    public async Task<ServiceResult<bool>> ReviewWithdrawalAsync(Guid entryId, bool approve, string? note)
+    {
+        var entry = await _entries.GetByIdAsync(entryId);
+        if (entry == null)
+            return ServiceResult<bool>.Fail(404, "Không tìm thấy đăng ký cuộc đua");
+        if (entry.WithdrawalStatus != RaceWithdrawalStatus.Pending)
+            return ServiceResult<bool>.Fail(400, "Yêu cầu rút lui không còn ở trạng thái chờ duyệt");
+        if (approve && entry.Race?.Status is RaceStatus.InProgress or RaceStatus.Finished or RaceStatus.Cancelled)
+            return ServiceResult<bool>.Fail(400, "Không thể phê duyệt rút lui khi cuộc đua đã bắt đầu hoặc kết thúc");
+
+        entry.WithdrawalStatus = approve
+            ? RaceWithdrawalStatus.Approved
+            : RaceWithdrawalStatus.Rejected;
+        entry.WithdrawalReviewedAt = DateTime.UtcNow;
+        entry.WithdrawalReviewNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim()[..Math.Min(note.Trim().Length, 500)];
+
+        if (approve)
+        {
+            entry.ScratchedAt = DateTime.UtcNow;
+            entry.ScratchReason = entry.WithdrawalReason;
+        }
+
+        await _entries.UpdateAsync(entry);
+        await _unitOfWork.SaveChangesAsync();
+        return ServiceResult<bool>.Ok(true);
+    }
+
     public async Task<ServiceResult<bool>> ValidateRaceEntriesForStartAsync(Guid raceId)
     {
         var entries = await _entries.GetByRaceAsync(raceId);
@@ -141,6 +202,7 @@ public class RaceEntryService : IRaceEntryService
             if (!e.JockeyConfirmed) reasons.Add("Kỵ sĩ chưa xác nhận (JockeyConfirmed=false)");
             if (e.JockeyId == null) reasons.Add("Chưa chọn kỵ sĩ");
             if (e.ScratchedAt != null) reasons.Add("Ngựa đã bị rút lui (Scratched)");
+            if (e.WithdrawalStatus == RaceWithdrawalStatus.Pending) reasons.Add("Yêu cầu rút lui đang chờ Admin xử lý");
             if (e.Horse?.ApprovalStatus != ApprovalStatus.Approved) reasons.Add("Hồ sơ ngựa chưa được Admin duyệt");
             if (!healthPassed.Contains(e.HorseId)) reasons.Add("Chưa có kiểm tra sức khỏe Đạt/Đã phê duyệt");
 

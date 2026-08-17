@@ -140,6 +140,17 @@ export const rejectRaceEntry = (entryId, reason) =>
     body: JSON.stringify({ reason }),
   });
 
+export const approveRaceWithdrawal = (entryId) =>
+  request(`/api/admin/race-entries/${entryId}/withdrawal/approve`, {
+    method: "POST",
+  });
+
+export const rejectRaceWithdrawal = (entryId, reason) =>
+  request(`/api/admin/race-entries/${entryId}/withdrawal/reject`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+
 // Tournament horse registrations
 export const getPendingTournamentRegistrations = async () =>
   unwrap(await request("/api/tournament-registrations/pending"));
