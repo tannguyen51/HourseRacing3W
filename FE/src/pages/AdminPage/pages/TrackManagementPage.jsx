@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { request } from "../../../services/apiClient";
 
-const emptyForm = { name: "", description: "", length: "", location: "", maxHorses: 12, surface: "", facilities: "" };
+const emptyForm = { name: "", description: "", length: "", location: "", maxHorses: 12, surface: "" };
 
 export default function TrackManagementPage() {
   const [tracks, setTracks] = useState([]);
@@ -30,7 +30,7 @@ export default function TrackManagementPage() {
           location: form.location.trim() || null,
           maxHorses: Number(form.maxHorses),
           surface: form.surface || null,
-          facilities: form.facilities.trim() || null,
+          facilities: null,
         }),
       });
       setMessage(editingId ? "Đã cập nhật sân đấu." : "Đã tạo sân đấu.");
@@ -48,7 +48,6 @@ export default function TrackManagementPage() {
       location: track.location ?? track.Location ?? "",
       maxHorses: track.maxHorses ?? track.MaxHorses ?? 12,
       surface: track.surface ?? track.Surface ?? "",
-      facilities: track.facilities ?? track.Facilities ?? "",
     });
     setMessage(""); setError("");
   };
@@ -82,8 +81,6 @@ export default function TrackManagementPage() {
         <select value={form.surface} onChange={e=>setForm({...form,surface:e.target.value})} style={{width:"100%",padding:10,border:"1px solid #d7c8aa",borderRadius:8,marginBottom:14}}>
           <option value="">-- Chọn mặt sân --</option><option value="Cỏ tự nhiên">Cỏ tự nhiên</option><option value="Cát">Cát</option><option value="Đất">Đất</option><option value="Tổng hợp">Tổng hợp</option>
         </select>
-        <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6}}>Tiện ích</label>
-        <input maxLength={500} placeholder="Khán đài, bãi đỗ xe, phòng y tế..." value={form.facilities} onChange={e=>setForm({...form,facilities:e.target.value})} style={{width:"100%",padding:10,border:"1px solid #d7c8aa",borderRadius:8,marginBottom:14}} />
         <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6}}>Mô tả</label>
         <textarea maxLength={500} rows={4} value={form.description} onChange={e=>setForm({...form,description:e.target.value})} style={{width:"100%",padding:10,border:"1px solid #d7c8aa",borderRadius:8,resize:"vertical"}} />
         <div style={{display:"flex",gap:8,marginTop:16}}>
@@ -93,11 +90,11 @@ export default function TrackManagementPage() {
       </form>
       <div style={{padding:20,overflowX:"auto",background:"rgba(255,250,240,.96)",border:"1px solid rgba(143,100,32,.16)",borderRadius:12}}>
         <h3 style={{marginTop:0}}>Danh sách sân ({tracks.length})</h3>
-        <table className="admin-table"><thead><tr><th>Tên sân</th><th>Địa điểm</th><th>Chiều dài</th><th>Sức chứa</th><th>Số cuộc đua</th><th>Mặt sân</th><th>Tiện ích / Mô tả</th><th>Thao tác</th></tr></thead>
+        <table className="admin-table"><thead><tr><th>Tên sân</th><th>Địa điểm</th><th>Chiều dài</th><th>Sức chứa</th><th>Số cuộc đua</th><th>Mặt sân</th><th>Mô tả</th><th>Thao tác</th></tr></thead>
           <tbody>{tracks.map(track => <tr key={track.id ?? track.Id}>
             <td><strong>{track.name ?? track.Name}</strong></td><td>{track.location ?? track.Location ?? "—"}</td><td>{track.length ?? track.Length ? `${track.length ?? track.Length} m` : "—"}</td>
             <td>{track.maxHorses ?? track.MaxHorses ?? 12} ngựa</td><td><strong>{track.raceCount ?? track.RaceCount ?? 0}</strong> cuộc đua</td><td>{track.surface ?? track.Surface ?? "—"}</td>
-            <td>{track.facilities ?? track.Facilities ?? track.description ?? track.Description ?? "—"}</td><td><div style={{display:"flex",gap:6}}><button className="ghost-button" onClick={()=>edit(track)}>Sửa</button><button className="admin-danger" onClick={()=>remove(track)}>Xóa</button></div></td>
+            <td>{track.description ?? track.Description ?? "—"}</td><td><div style={{display:"flex",gap:6}}><button className="ghost-button" onClick={()=>edit(track)}>Sửa</button><button className="admin-danger" onClick={()=>remove(track)}>Xóa</button></div></td>
           </tr>)}{tracks.length===0&&<tr><td colSpan={8}>Chưa có sân đấu nào.</td></tr>}</tbody>
         </table>
       </div>
