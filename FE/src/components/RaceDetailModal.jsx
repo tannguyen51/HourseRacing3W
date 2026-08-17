@@ -214,7 +214,7 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
                       const rs=(r.status??r.Status??"").toLowerCase();
                       return (
                         <div key={i} style={{display:"flex",alignItems:"center",gap:7,marginBottom:4,fontSize:13}}>
-                          <span style={{color:rs==="confirmed"?"#10b981":"#f59e0b",fontSize:13}}>{rs==="confirmed"?"✅":"⏳"}</span>
+                          <span style={{color:rs==="confirmed"?"#10b981":"#f59e0b",display:"flex",alignItems:"center"}}>{rs==="confirmed"?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>}</span>
                           <span style={{color:"#172033"}}>{r.refereeName ?? r.RefereeName}</span>
                           <span style={{fontSize:11,color:rs==="confirmed"?"#047857":"#b45309"}}>{rs==="confirmed"?"Đã xác nhận":"Chờ xác nhận"}</span>
                         </div>
