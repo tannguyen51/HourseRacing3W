@@ -29,6 +29,8 @@ public class TournamentTrackDto
     public string TrackName { get; set; } = string.Empty;
     public DateTime AvailableFrom { get; set; }
     public DateTime AvailableTo { get; set; }
+    public int? TrackLength { get; set; }
+    public int TrackMaxHorses { get; set; }
 }
 
 public class UpdateTournamentRequest

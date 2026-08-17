@@ -63,12 +63,13 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
 
   const load = async () => {
     try {
-      const [detail, entries, refs, report, result] = await Promise.all([
+      const [detail, entries, refs, report, result, simulation] = await Promise.all([
         request(`/api/races/management/${raceId}`),
         request(`/api/referees/race/${raceId}/entries`),
         request(`/api/referees/race/${raceId}/assignments`),
         request(`/api/referees/race/${raceId}/report`).catch(() => null),
         request(`/api/races/${raceId}/result`).catch(() => null),
+        request(`/api/races/${raceId}/simulation`).catch(() => null),
       ]);
       setDet({
         detail: detail?.data ?? detail,
@@ -76,6 +77,7 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
         refAssignments: Array.isArray(refs?.data ?? refs) ? (refs?.data ?? refs) : [],
         report: report?.data ?? report,
         result: result?.data ?? result,
+        simulation: simulation?.data ?? simulation,
       });
     } catch { /* ignore */ }
     setLoading(false);
@@ -94,10 +96,12 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
   const refs = det?.refAssignments ?? [];
   const report = det?.report ?? null;
   const result = det?.result ?? null;
+  const simulation = det?.simulation ?? null;
 
   const st = (detail.status ?? race.status ?? race.Status ?? "").toString().toLowerCase();
   const name = detail.name ?? race.name ?? race.Name ?? "Cuộc đua";
   const distance = detail.distance ?? race.distance ?? race.Distance ?? 0;
+  const laps = detail.laps ?? race.laps ?? race.Laps ?? 2;
   const maxParticipants = detail.maxParticipants ?? race.maxParticipants ?? race.MaxParticipants ?? 12;
   const scheduledAt = detail.scheduledAt ?? race.scheduledAt ?? race.ScheduledAt;
   const targetWeight = Number(detail.targetWeight ?? race.targetWeight ?? race.TargetWeight ?? 55);
@@ -164,6 +168,7 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
               {/* Lưới 4 cột thông tin */}
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:12,marginBottom:22}}>
                 <InfoTile icon="📏" label="Khoảng cách" value={`${fmtNum(distance)}m`} />
+                <InfoTile icon="🔄" label="Số vòng" value={`${laps}`} />
                 <InfoTile icon="⚖️" label="Hạng cân" value={weightBand} />
                 <InfoTile icon="🏇" label="Số lượng ngựa" value={`${entriesCount}/${maxParticipants}`} tone={entriesCount >= maxParticipants ? "#b45309" : "#172033"} />
                 <InfoTile icon="🕔" label="Bắt đầu" value={fmtDate(scheduledAt)} />
@@ -197,6 +202,25 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
                   </div>
                 )}
               </div>
+
+              {/* Kế hoạch mô phỏng */}
+              {simulation?.horses?.length > 0 && started(st) && (
+                <div style={{marginBottom:22}}>
+                  <SectionTitle right={<span style={{fontSize:11,color:"#94a3b8"}}>Thứ tự dự kiến theo mô phỏng</span>}>🎬 Kế hoạch mô phỏng</SectionTitle>
+                  <div style={{padding:"6px 14px",borderRadius:12,border:"1px solid rgba(230,165,74,0.35)",background:"rgba(255,250,240,0.6)"}}>
+                    {[...(simulation.horses ?? [])]
+                      .sort((a,b)=>(a.finishPosition ?? a.FinishPosition)-(b.finishPosition ?? b.FinishPosition))
+                      .map((h,i)=>(
+                        <div key={h.horseId ?? h.HorseId} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:i<(simulation.horses?.length??1)-1?"1px solid rgba(143,100,32,0.08)":"none",fontSize:13}}>
+                          <span style={{width:22,height:22,borderRadius:"50%",background:i===0?"#e6a54a":i===1?"#cbd5e1":i===2?"#d97706":"#f1f5f9",color:"#172033",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{i+1}</span>
+                          <strong style={{color:"#172033"}}>{h.name ?? h.Name}</strong>
+                          {i===0 && <span style={{fontSize:11,color:"#b45309",fontWeight:600}}>🏆 dự kiến thắng</span>}
+                          <span style={{marginLeft:"auto",fontSize:11,color:"#657086"}}>≈ {fmtNum(h.finishTimeSeconds ?? h.FinishTimeSeconds)}s</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
 
               {/* Vòng đấu & Trọng tài */}
               <div style={{marginBottom:22}}>

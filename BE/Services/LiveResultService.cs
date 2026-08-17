@@ -3,9 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using HorseRacing.Dtos;
+using HorseRacing.Hubs;
 using HorseRacing.Models;
 using HorseRacing.Repositories.Interfaces;
 using HorseRacing.Services.Interfaces;
+using Microsoft.AspNetCore.SignalR;
 
 namespace HorseRacing.Services;
 
@@ -19,6 +21,7 @@ public class LiveResultService : ILiveResultService
     private readonly IRaceResultRepository _raceResultRepo;
     private readonly IPredictionService _predictionService;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IHubContext<RaceHub> _hub;
 
     public LiveResultService(
         IRaceRepository raceRepo,
@@ -28,7 +31,8 @@ public class LiveResultService : ILiveResultService
         IRaceManagementRepository raceManagementRepo,
         IRaceResultRepository raceResultRepo,
         IPredictionService predictionService,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IHubContext<RaceHub> hub)
     {
         _raceRepo = raceRepo;
         _entryRepo = entryRepo;
@@ -38,6 +42,7 @@ public class LiveResultService : ILiveResultService
         _raceResultRepo = raceResultRepo;
         _predictionService = predictionService;
         _unitOfWork = unitOfWork;
+        _hub = hub;
     }
 
     public async Task<ServiceResult<LiveRaceResultResponse>> GetLiveRaceResultAsync(Guid raceId)
@@ -199,6 +204,8 @@ public class LiveResultService : ILiveResultService
                 race.UpdatedAt = DateTime.UtcNow;
                 await _raceRepo.UpdateAsync(race);
                 await _unitOfWork.SaveChangesAsync();
+                try { await _hub.Clients.Group(raceId.ToString()).SendAsync("RaceResultSubmitted", new { raceId, winningHorseId = request.WinningHorseId }); }
+                catch { /* best-effort */ }
                 return ServiceResult<bool>.Success(true);
             }
 
@@ -220,6 +227,8 @@ public class LiveResultService : ILiveResultService
             await _raceRepo.UpdateAsync(race);
             await _unitOfWork.SaveChangesAsync();
 
+            try { await _hub.Clients.Group(raceId.ToString()).SendAsync("RaceResultSubmitted", new { raceId, winningHorseId = request.WinningHorseId }); }
+            catch { /* best-effort */ }
             return ServiceResult<bool>.Success(true);
         }
         catch (Exception ex)

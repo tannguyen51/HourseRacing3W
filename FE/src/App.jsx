@@ -27,6 +27,7 @@ const SpectatorLiveRankingPage = lazy(() => import("./pages/SpectatorLiveRanking
 const SpectatorPredictionFormPage = lazy(() => import("./pages/SpectatorPredictionFormPage/SpectatorPredictionFormPage"));
 const SpectatorPredictionResultPage = lazy(() => import("./pages/SpectatorPredictionResultPage/SpectatorPredictionResultPage"));
 const SpectatorRewardNotificationsPage = lazy(() => import("./pages/SpectatorRewardNotificationsPage/SpectatorRewardNotificationsPage"));
+const RaceSimulationPage = lazy(() => import("./pages/RaceSimulationPage/RaceSimulationPage"));
 const JockeyInvitationPage = lazy(() => import("./pages/JockeyInvitationPage/JockeyInvitationPage"));
 const JockeyInvitationDetailPage = lazy(() => import("./pages/JockeyInvitationPage/JockeyInvitationDetailPage"));
 const JockeyDashboardPage = lazy(() => import("./pages/JockeyDashboardPage/JockeyDashboardPage"));
@@ -130,6 +131,7 @@ function AppLayout() {
               <Route path="/spectator/predictions" element={<SpectatorPredictionFormPage />} />
               <Route path="/spectator/predictions/results" element={<SpectatorPredictionResultPage />} />
               <Route path="/spectator/rewards" element={<SpectatorRewardNotificationsPage />} />
+              <Route path="/spectator/live-race" element={<RaceSimulationPage />} />
               <Route path="/spectator/profile" element={<SpectatorProfilePage />} />
             </Route>
 

@@ -5,9 +5,11 @@ using System.Threading.Tasks;
 using System.Transactions;
 using HorseRacing.Data;
 using HorseRacing.Dtos;
+using HorseRacing.Hubs;
 using HorseRacing.Models;
 using HorseRacing.Repositories.Interfaces;
 using HorseRacing.Services.Interfaces;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 
@@ -30,6 +32,7 @@ public class RaceManagementService : IRaceManagementService
     private readonly ILogger<RaceManagementService> _logger;
     private readonly IRaceEntryService _raceEntryService;
     private readonly ApplicationDbContext _db;
+    private readonly IHubContext<RaceHub> _hub;
 
     public RaceManagementService(
         IRaceRepository raceRepo,
@@ -46,7 +49,8 @@ public class RaceManagementService : IRaceManagementService
         IUnitOfWork unitOfWork,
         ILogger<RaceManagementService> logger,
         IRaceEntryService raceEntryService,
-        ApplicationDbContext db)
+        ApplicationDbContext db,
+        IHubContext<RaceHub> hub)
     {
         _raceRepo = raceRepo;
         _entryRepo = entryRepo;
@@ -63,6 +67,7 @@ public class RaceManagementService : IRaceManagementService
         _logger = logger;
         _raceEntryService = raceEntryService;
         _db = db;
+        _hub = hub;
     }
 
     public async Task<ServiceResult<RaceDetailResponse>> CreateRaceAsync(CreateRaceRequest request)
@@ -83,9 +88,8 @@ public class RaceManagementService : IRaceManagementService
                 request.ScheduledAt, request.ScheduledEndAt, null);
             if (scheduleError != null)
                 return ServiceResult<RaceDetailResponse>.Fail(400, scheduleError);
-            var trackCapacity = await _db.Tracks.Where(x => x.Id == request.TrackId).Select(x => x.MaxHorses).FirstAsync();
-            if (request.MaxParticipants > trackCapacity)
-                return ServiceResult<RaceDetailResponse>.Fail(400, $"Sân đấu chỉ cho phép tối đa {trackCapacity} ngựa.");
+            var track = await _db.Tracks.Where(x => x.Id == request.TrackId)
+                .Select(x => new { x.Length, x.MaxHorses }).FirstAsync();
 
             var race = new Race
             {
@@ -99,12 +103,15 @@ public class RaceManagementService : IRaceManagementService
                 Status = RaceStatus.Scheduled,
                 Location = request.Location,
                 Description = request.Description,
-                MaxParticipants = request.MaxParticipants,
-                Distance = request.Distance,
+                // Chiều dài & sức chứa luôn lấy từ sân đấu (sửa ở tab quản lý sân)
+                MaxParticipants = track.MaxHorses,
+                Distance = track.Length ?? request.Distance,
                 TargetWeight = request.TargetWeight,
                 WeightTolerance = request.WeightTolerance,
                 MaxBallastWeight = request.MaxBallastWeight,
                 RoundNames = request.RoundNames,
+                Laps = Math.Max(1, request.Laps),
+                WinnerOverrideHorseId = request.WinnerOverrideHorseId,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -162,10 +169,10 @@ public class RaceManagementService : IRaceManagementService
                 proposedStart, proposedEnd, race.Id);
             if (scheduleError != null)
                 return ServiceResult<RaceDetailResponse>.Fail(400, scheduleError);
-            var proposedMaxParticipants = request.MaxParticipants ?? race.MaxParticipants;
-            var trackCapacity = await _db.Tracks.Where(x => x.Id == proposedTrackId).Select(x => x.MaxHorses).FirstAsync();
-            if (proposedMaxParticipants > trackCapacity)
-                return ServiceResult<RaceDetailResponse>.Fail(400, $"Sân đấu chỉ cho phép tối đa {trackCapacity} ngựa.");
+            var track = await _db.Tracks.Where(x => x.Id == proposedTrackId)
+                .Select(x => new { x.Length, x.MaxHorses }).FirstAsync();
+            var liveEntries = await _db.RaceEntries.CountAsync(e =>
+                e.RaceId == race.Id && e.Status != RegistrationStatus.Rejected && e.ScratchedAt == null);
 
             if (!string.IsNullOrEmpty(request.Name))
                 race.Name = request.Name;
@@ -191,6 +198,19 @@ public class RaceManagementService : IRaceManagementService
                 race.ScheduledEndAt = request.ScheduledEndAt.Value;
             if (request.TrackId.HasValue)
                 race.TrackId = request.TrackId;
+
+            // Chiều dài & sức chứa luôn đồng bộ với sân đấu (sửa ở tab quản lý sân)
+            // nhưng không được nhỏ hơn số ngựa đang có trong cuộc đua
+            race.MaxParticipants = Math.Max(liveEntries, track.MaxHorses);
+            if (track.Length.HasValue) race.Distance = track.Length.Value;
+
+            // Số vòng & ngựa ép thắng chỉ đổi được trước khi cuộc đua bắt đầu
+            if (request.Laps.HasValue && race.Status is RaceStatus.Scheduled or RaceStatus.RegistrationOpen or RaceStatus.RegistrationClosed)
+                race.Laps = Math.Max(1, request.Laps.Value);
+            if (request.WinnerOverrideHorseId.HasValue && race.Status is RaceStatus.Scheduled or RaceStatus.RegistrationOpen or RaceStatus.RegistrationClosed)
+                race.WinnerOverrideHorseId = request.WinnerOverrideHorseId.Value == Guid.Empty
+                    ? null // xoá lựa chọn ép thắng
+                    : request.WinnerOverrideHorseId.Value;
 
             race.UpdatedAt = DateTime.UtcNow;
             await _raceRepo.UpdateAsync(race);
@@ -502,6 +522,15 @@ public class RaceManagementService : IRaceManagementService
             }
 
             await _entryRepo.DeleteAsync(entry.Id);
+
+            // nếu đang ép ngựa này thắng → bỏ ép vì ngựa không còn trong cuộc đua
+            if (race.WinnerOverrideHorseId == horseId)
+            {
+                race.WinnerOverrideHorseId = null;
+                race.UpdatedAt = DateTime.UtcNow;
+                await _raceRepo.UpdateAsync(race);
+            }
+
             await _unitOfWork.SaveChangesAsync();
             await RecalculateOddsAsync(raceId);
             return ServiceResult<bool>.Ok(true);
@@ -631,6 +660,9 @@ public class RaceManagementService : IRaceManagementService
 
             await _raceRepo.UpdateAsync(race);
             await _unitOfWork.SaveChangesAsync();
+
+            try { await _hub.Clients.Group(raceId.ToString()).SendAsync("RaceStarted", new { raceId }); }
+            catch { /* best-effort: hub lỗi không ảnh hưởng trạng thái cuộc đua */ }
             return ServiceResult<bool>.Ok(true);
         }
         catch (Exception ex)
@@ -680,6 +712,8 @@ public class RaceManagementService : IRaceManagementService
                 await _predictionService.SettlePredictionAsync(raceId, raceResult.WinningHorseId);
 
                 scope.Complete();
+                try { await _hub.Clients.Group(raceId.ToString()).SendAsync("RaceFinished", new { raceId }); }
+                catch { /* best-effort */ }
                 return ServiceResult<bool>.Ok(true);
             }
             catch (Exception ex)
@@ -756,6 +790,15 @@ public class RaceManagementService : IRaceManagementService
                 return ServiceResult<bool>.Fail(404, "Không tìm thấy đăng ký tham gia");
 
             await _entryRepo.DeleteAsync(entry.Id);
+
+            // nếu đang ép ngựa này thắng → bỏ ép vì ngựa không còn trong cuộc đua
+            if (race.WinnerOverrideHorseId == horseId)
+            {
+                race.WinnerOverrideHorseId = null;
+                race.UpdatedAt = DateTime.UtcNow;
+                await _raceRepo.UpdateAsync(race);
+            }
+
             await _unitOfWork.SaveChangesAsync();
             await RecalculateOddsAsync(raceId);
             return ServiceResult<bool>.Ok(true);
@@ -807,6 +850,8 @@ public class RaceManagementService : IRaceManagementService
             TargetWeight = race.TargetWeight,
             WeightTolerance = race.WeightTolerance,
             MaxBallastWeight = race.MaxBallastWeight,
+            Laps = race.Laps,
+            WinnerOverrideHorseId = race.WinnerOverrideHorseId,
             EntriesCount = race.Entries?.Count ?? 0,
             ActiveRefereesCount = race.RefereeAssignments?.Count(a => a.Status != RefereeAssignmentStatus.Cancelled) ?? 0,
             RoundNames = race.RoundNames,

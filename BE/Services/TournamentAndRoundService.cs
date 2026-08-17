@@ -544,7 +544,8 @@ public class TournamentService : ITournamentService
             .Select(x => new TournamentTrackDto
             {
                 TrackId = x.TrackId, TrackName = x.Track!.Name,
-                AvailableFrom = x.AvailableFrom, AvailableTo = x.AvailableTo
+                AvailableFrom = x.AvailableFrom, AvailableTo = x.AvailableTo,
+                TrackLength = x.Track.Length, TrackMaxHorses = x.Track.MaxHorses
             }).ToListAsync();
 
         return new TournamentResponse
