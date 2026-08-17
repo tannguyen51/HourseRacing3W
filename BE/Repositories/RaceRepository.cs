@@ -25,7 +25,10 @@ public class RaceRepository : IRaceRepository
 
     public Task<List<Race>> GetAllAsync()
     {
-        return _db.Races.Include(r => r.Entries).ToListAsync();
+        return _db.Races
+            .Include(r => r.Entries)
+            .Include(r => r.Track)
+            .ToListAsync();
     }
 
     public Task<Race?> GetByIdAsync(Guid raceId)
@@ -34,6 +37,7 @@ public class RaceRepository : IRaceRepository
             .Include(r => r.Entries)
             .Include(r => r.RefereeAssignments)
             .Include(r => r.Tournament)
+            .Include(r => r.Track)
             .FirstOrDefaultAsync(r => r.Id == raceId);
     }
 
@@ -50,6 +54,7 @@ public class RaceRepository : IRaceRepository
         return _db.Races
             .Include(r => r.Entries)
             .Include(r => r.RefereeAssignments)
+            .Include(r => r.Track)
             .Where(r => r.TournamentId == tournamentId)
             .OrderBy(r => r.ScheduledAt)
             .ToListAsync();
@@ -60,6 +65,7 @@ public class RaceRepository : IRaceRepository
         return _db.Races
             .Include(r => r.Entries)
             .Include(r => r.RefereeAssignments)
+            .Include(r => r.Track)
             .Where(r => r.RoundId == roundId)
             .OrderBy(r => r.ScheduledAt)
             .ToListAsync();
