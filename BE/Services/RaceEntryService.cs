@@ -158,6 +158,12 @@ public class RaceEntryService : IRaceEntryService
         {
             entry.ScratchedAt = DateTime.UtcNow;
             entry.ScratchReason = entry.WithdrawalReason;
+
+            var activeEntries = (await _entries.GetByRaceAsync(entry.RaceId))
+                .Where(item => item.Status == RegistrationStatus.Approved && item.ScratchedAt == null)
+                .ToList();
+            if (activeEntries.Count > 0)
+                OddsCalculator.Recalculate(activeEntries);
         }
 
         await _entries.UpdateAsync(entry);

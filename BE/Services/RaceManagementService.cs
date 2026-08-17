@@ -272,7 +272,7 @@ public class RaceManagementService : IRaceManagementService
             }
 
             var currentCount = await _entryRepo.GetByRaceAsync(raceId);
-            if (currentCount.Count >= race.MaxParticipants)
+            if (currentCount.Count(e => e.Status != RegistrationStatus.Rejected && e.ScratchedAt == null) >= race.MaxParticipants)
             {
                 return ServiceResult<bool>.Fail(400, $"Cuộc đua đã đạt số lượng người tham gia tối đa ({race.MaxParticipants}).");
             }
@@ -416,7 +416,7 @@ public class RaceManagementService : IRaceManagementService
             }
 
             var currentCount = await _entryRepo.GetByRaceAsync(raceId);
-            if (currentCount.Count >= race.MaxParticipants)
+            if (currentCount.Count(e => e.Status != RegistrationStatus.Rejected && e.ScratchedAt == null) >= race.MaxParticipants)
             {
                 return ServiceResult<bool>.Fail(400, $"Cuộc đua đã đạt số lượng người tham gia tối đa ({race.MaxParticipants}).");
             }
@@ -612,7 +612,9 @@ public class RaceManagementService : IRaceManagementService
                 return ServiceResult<bool>.Fail(400, $"Không thể bắt đầu cuộc đua với trạng thái '{race.Status}'. Phải đóng đăng ký trước khi bắt đầu.");
             }
 
-            var entries = await _entryRepo.GetByRaceAsync(raceId);
+            var entries = (await _entryRepo.GetByRaceAsync(raceId))
+                .Where(e => e.Status == RegistrationStatus.Approved && e.ScratchedAt == null)
+                .ToList();
             if (entries.Count == 0)
             {
                 return ServiceResult<bool>.Fail(400, "Không thể bắt đầu cuộc đua khi chưa có ngựa tham gia.");
@@ -811,7 +813,8 @@ public class RaceManagementService : IRaceManagementService
             TargetWeight = race.TargetWeight,
             WeightTolerance = race.WeightTolerance,
             MaxBallastWeight = race.MaxBallastWeight,
-            EntriesCount = race.Entries?.Count ?? 0,
+            EntriesCount = race.Entries?.Count(e =>
+                e.Status != RegistrationStatus.Rejected && e.ScratchedAt == null) ?? 0,
             ActiveRefereesCount = race.RefereeAssignments?.Count(a => a.Status != RefereeAssignmentStatus.Cancelled) ?? 0,
             RoundNames = race.RoundNames,
             ScheduledEndAt = race.ScheduledEndAt,
@@ -822,7 +825,9 @@ public class RaceManagementService : IRaceManagementService
 
     private async Task RecalculateOddsAsync(Guid raceId)
     {
-        var entries = await _entryRepo.GetByRaceAsync(raceId);
+        var entries = (await _entryRepo.GetByRaceAsync(raceId))
+            .Where(e => e.Status == RegistrationStatus.Approved && e.ScratchedAt == null)
+            .ToList();
         if (!entries.Any()) return;
         OddsCalculator.Recalculate(entries);
         await _unitOfWork.SaveChangesAsync();

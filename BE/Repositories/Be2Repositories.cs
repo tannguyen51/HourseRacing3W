@@ -587,7 +587,9 @@ public class RaceManagementRepository : IRaceManagementRepository
     public async Task<IEnumerable<RaceEntry>> GetRaceEntriesAsync(Guid raceId)
     {
         return await _context.Set<RaceEntry>()
-            .Where(e => e.RaceId == raceId)
+            .Where(e => e.RaceId == raceId &&
+                        e.Status == RegistrationStatus.Approved &&
+                        e.ScratchedAt == null)
             .Include(e => e.Horse)
             .Include(e => e.Jockey)
             .ToListAsync();
@@ -604,7 +606,9 @@ public class RaceManagementRepository : IRaceManagementRepository
     public async Task<int> GetRaceParticipantCountAsync(Guid raceId)
     {
         return await _context.Set<RaceEntry>()
-            .Where(e => e.RaceId == raceId)
+            .Where(e => e.RaceId == raceId &&
+                        e.Status == RegistrationStatus.Approved &&
+                        e.ScratchedAt == null)
             .CountAsync();
     }
 
