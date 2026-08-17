@@ -32,6 +32,7 @@ function TournamentForm({ onClose, onSuccess }) {
     prizePool: 0,
     imageUrl: "",
     registrationDeadline: "",
+    venue: "",
   });
 
   const updateForm = (field, value) => {
@@ -82,6 +83,7 @@ function TournamentForm({ onClose, onSuccess }) {
         startDate: dateOnlyToIso(form.startDate),
         endDate: dateOnlyToIso(form.endDate, true),
         prizePool: Number(form.prizePool),
+        venue: form.venue,
         imageUrl: form.imageUrl || null,
         registrationDeadline: form.registrationDeadline ? dateOnlyToIso(form.registrationDeadline, true) : null,
         tracks: trackSlots.map(x => ({
@@ -112,6 +114,7 @@ function TournamentForm({ onClose, onSuccess }) {
             <Input label="Ngày bắt đầu" type="date" value={form.startDate} onChange={(e) => updateForm("startDate", e.target.value)} required />
             <Input label="Ngày kết thúc" type="date" value={form.endDate} onChange={(e) => updateForm("endDate", e.target.value)} required />
           </div>
+          <Input label="Địa điểm (hiển thị cho người xem)" value={form.venue} onChange={(e) => updateForm("venue", e.target.value)} placeholder="VD: Sân vận động Mỹ Đình" />
           <Input label="Hạn đăng ký" type="date" value={form.registrationDeadline} onChange={(e) => updateForm("registrationDeadline", e.target.value)} />
           <div style={{marginBottom:16}}>
             <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:8,color:"#34415b"}}>Sân đấu và ngày giờ sử dụng *</label>

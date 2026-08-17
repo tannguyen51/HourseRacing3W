@@ -845,6 +845,7 @@ function TournamentManagement() {
       registrationDeadline: toLocalInput(item.registrationDeadline ?? item.RegistrationDeadline),
       prizePool: item.prizePool ?? item.PrizePool ?? 0,
       imageUrl: item.imageUrl ?? item.ImageUrl ?? "",
+      venue: item.venue ?? item.Venue ?? "",
     });
     
     const existingTracks = item.tracks ?? item.Tracks ?? [];
@@ -883,8 +884,10 @@ function TournamentManagement() {
 
   return (
     <>
-      <PageTitle eyebrow="Quản lý giải đấu" title="Giải đấu" description="Tạo giải đấu và điều phối vòng đấu, cuộc đua." action={<button className="primary-button" onClick={() => { setEditingId(""); setShowForm(true); }}>Tạo giải đấu</button>} />
       <Notice message={message} />
+      {!selectedT ? (
+        <>
+          <PageTitle eyebrow="Quản lý giải đấu" title="Giải đấu" description="Tạo giải đấu và điều phối vòng đấu, cuộc đua." action={<button className="primary-button" onClick={() => { setEditingId(""); setShowForm(true); }}>Tạo giải đấu</button>} />
       {showForm && !editingId && (
         <TournamentForm
           onClose={() => setShowForm(false)}
@@ -913,6 +916,10 @@ function TournamentManagement() {
           ))}
           <button type="button" onClick={() => setTrackSlots(prev => [...prev, { trackId: "", availableFrom: "", availableTo: "" }])} style={{ border: 0, background: "transparent", color: "#8f6420", fontWeight: 600, cursor: "pointer", fontSize: 13 }}>+ Thêm sân</button>
         </div>
+        <label style={{ fontSize: 13, color: "#657086", display: "flex", flexDirection: "column", gap: 4 }}>
+          Địa điểm (hiển thị trên thẻ):
+          <input placeholder="VD: Hà Nội" value={form.venue || ""} onChange={(e) => setForm({ ...form, venue: e.target.value })} />
+        </label>
         <label style={{ fontSize: 13, color: "#657086", display: "flex", flexDirection: "column", gap: 4 }}>
           Ngày bắt đầu:
           <input type="datetime-local" required value={form.startDate} onChange={(e) => setForm({ ...form, startDate: e.target.value })} />
@@ -950,10 +957,11 @@ function TournamentManagement() {
                 {t.label}
               </button>
             ))}
-            <button onClick={() => edit(item)}>Sửa</button><button className="admin-danger" onClick={() => remove(id)}>Xóa</button>
+            <button onClick={(e) => { e.stopPropagation(); edit(item); }}>Sửa</button><button className="admin-danger" onClick={(e) => { e.stopPropagation(); remove(id); }}>Xóa</button>
           </div></article>;
       })}</section>
-      {selectedT && (
+        </>
+      ) : (
         <TournamentDetail
           t={selectedT}
           onBack={() => setSelectedT(null)}
