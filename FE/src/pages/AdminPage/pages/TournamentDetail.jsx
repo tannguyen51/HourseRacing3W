@@ -7,6 +7,8 @@ const raceStatusColor = (s) => ({scheduled:"#2563eb",registrationopen:"#047857",
 const raceStatusLabel = (s) => ({scheduled:"Sắp diễn ra",registrationopen:"Mở đăng ký",registrationclosed:"Đã đóng đăng ký",inprogress:"Đang đua",finished:"Đã kết thúc",cancelled:"Đã hủy",awaitingresult:"Chờ kết quả",resultpendingapproval:"Chờ duyệt",resultapproved:"Đã duyệt KQ"})[s]||s||"Không xác định";
 const fmtDate2 = (v) => v?new Date(v).toLocaleDateString("vi-VN",{day:"2-digit",month:"2-digit",year:"numeric"}):"";
 const fmtDateTime = (v) => v?new Date(v).toLocaleString("vi-VN",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
+const fmtMoney = (v) => `${Number(v || 0).toLocaleString("vi-VN")} VNĐ`;
+const tournamentStatusLabel = (s) => ({draft:"Bản nháp",published:"Đã công bố",registrationopen:"Mở đăng ký",registrationclosed:"Đóng đăng ký",inprogress:"Đang diễn ra",finished:"Đã kết thúc",cancelled:"Đã hủy"})[(s||"").toString().toLowerCase()] || s || "Không xác định";
 
 function RaceInfo({ label, value }) {
   return <div style={{minWidth:130}}>
@@ -17,6 +19,9 @@ function RaceInfo({ label, value }) {
 
 export default function TournamentDetail({ t, onBack, setMessage, getTournamentRaces }) {
   const tId = t.id??t.Id;
+  const tournamentTracks = t.tracks??t.Tracks??[];
+  const stats = t.stats??t.Stats??{};
+  const tournamentStatus = t.statusName??t.StatusName??t.status??t.Status;
   const [races, setRaces] = useState([]);
   const [showRaceForm, setShowRaceForm] = useState(false);
   const [editRaceData, setEditRaceData] = useState(null);
@@ -30,13 +35,34 @@ export default function TournamentDetail({ t, onBack, setMessage, getTournamentR
 
   return (
     <><div style={{marginBottom:12}}><button className="ghost-button" onClick={onBack} style={{fontSize:13}}>← Quay lại</button></div>
-    <div style={{padding:"20px 24px",borderRadius:16,border:"1px solid rgba(143,100,32,0.2)",background:"rgba(255,250,240,0.5)",marginBottom:20}}>
+    <div style={{padding:"24px 28px",borderRadius:16,border:"1px solid rgba(143,100,32,0.2)",background:"rgba(255,250,240,0.5)",marginBottom:28,position:"relative",overflow:"hidden"}}>
+      {(t.imageUrl??t.ImageUrl) && <div style={{position:"absolute",inset:0,backgroundImage:`linear-gradient(90deg,rgba(255,250,240,.97),rgba(255,250,240,.78)),url(${t.imageUrl??t.ImageUrl})`,backgroundSize:"cover",backgroundPosition:"center",pointerEvents:"none"}} />}
+      <div style={{position:"relative"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
-        <div><h2 style={{margin:"0 0 4px",fontSize:24,color:"#172033"}}>{t.name??t.Name}</h2>
-          <p style={{ margin: 0, fontSize: 13, color: "#657086" }}>{(t.venue ?? t.Venue) ? (t.venue ?? t.Venue) + " · " : ""}{fmtDate2(t.startDate??t.StartDate)} → {fmtDate2(t.endDate??t.EndDate)}</p></div>
+        <div><div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}><h2 style={{margin:0,fontSize:24,color:"#172033"}}>{t.name??t.Name}</h2>
+          <span style={{padding:"3px 10px",borderRadius:999,fontSize:11,fontWeight:700,color:(t.isActive??t.IsActive)?"#047857":"#64748b",background:(t.isActive??t.IsActive)?"rgba(16,185,129,.1)":"rgba(100,116,139,.1)"}}>{tournamentStatusLabel(tournamentStatus)}</span></div>
+          <p style={{margin:"6px 0 0",fontSize:13,color:"#657086"}}>{t.description??t.Description??"Chưa có mô tả cho giải đấu."}</p></div>
         <div style={{display:"flex",gap:8}}>
           <button className="primary-button" style={{padding:"6px 14px",fontSize:13}} onClick={()=>setShowRaceForm(true)}>+ Tạo cuộc đua</button>
         </div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(155px,1fr))",gap:"16px 22px",marginTop:22,paddingTop:18,borderTop:"1px solid rgba(143,100,32,.14)"}}>
+        <RaceInfo label="Địa điểm" value={t.venue??t.Venue} />
+        <RaceInfo label="Thời gian giải" value={`${fmtDate2(t.startDate??t.StartDate)} → ${fmtDate2(t.endDate??t.EndDate)}`} />
+        <RaceInfo label="Hạn đăng ký" value={fmtDateTime(t.registrationDeadline??t.RegistrationDeadline)} />
+        <RaceInfo label="Tổng giải thưởng" value={fmtMoney(t.prizePool??t.PrizePool)} />
+        <RaceInfo label="Số vòng" value={`${t.roundCount??t.RoundCount??0} vòng`} />
+        <RaceInfo label="Số cuộc đua" value={`${stats.raceCount??stats.RaceCount??t.raceCount??t.RaceCount??0} cuộc`} />
+        <RaceInfo label="Ngựa đăng ký" value={`${stats.horseCount??stats.HorseCount??0} ngựa`} />
+        <RaceInfo label="Kỵ sĩ" value={`${stats.jockeyCount??stats.JockeyCount??0} người`} />
+      </div>
+      {tournamentTracks.length>0 && <div style={{marginTop:20}}>
+        <span style={{display:"block",fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:.5,color:"#8b95a7",marginBottom:8}}>Sân đấu của giải</span>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(240px,1fr))",gap:10}}>{tournamentTracks.map((track)=><div key={track.trackId??track.TrackId} style={{padding:"10px 12px",borderRadius:10,border:"1px solid rgba(143,100,32,.14)",background:"rgba(255,255,255,.55)"}}>
+          <strong style={{display:"block",fontSize:13,color:"#172033"}}>{track.trackName??track.TrackName}</strong>
+          <span style={{fontSize:11,color:"#657086"}}>{fmtDateTime(track.availableFrom??track.AvailableFrom)} → {fmtDateTime(track.availableTo??track.AvailableTo)}</span>
+        </div>)}</div>
+      </div>}
       </div>
     </div>
     {showRaceForm && !editRaceData && <RaceForm tournamentId={tId} tournamentName={t.name??t.Name} tournamentStartDate={t.startDate??t.StartDate} tournamentEndDate={t.endDate??t.EndDate}
