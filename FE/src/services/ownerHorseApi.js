@@ -64,3 +64,11 @@ export const confirmRaceEntry = async (raceId, entryId) =>
 
 export const getMyRaceEntries = async () =>
   unwrapResponseData(await request("/api/horses/my-entries"));
+
+export const requestRaceWithdrawal = async (entryId, reason) =>
+  unwrapResponseData(
+    await request(`/api/horses/race-entries/${entryId}/withdrawal-request`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+  );

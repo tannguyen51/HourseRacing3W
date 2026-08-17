@@ -214,6 +214,9 @@ public class AdminController : ControllerBase
             OwnerName = e.Horse?.Owner?.User?.FullName ?? "",
             JockeyName = e.Jockey?.User?.FullName,
             Status = e.Status.ToString(),
+            RequestType = e.WithdrawalStatus == RaceWithdrawalStatus.Pending ? "Withdrawal" : "Registration",
+            WithdrawalReason = e.WithdrawalReason,
+            WithdrawalRequestedAt = e.WithdrawalRequestedAt,
             OwnerConfirmed = e.OwnerConfirmed,
             JockeyConfirmed = e.JockeyConfirmed
         });
@@ -233,6 +236,20 @@ public class AdminController : ControllerBase
     public async Task<ActionResult> RejectRaceEntry(Guid entryId, [FromBody] EntryRejectRequest request)
     {
         var result = await _raceEntryService.RejectAsync(entryId, request?.Reason);
+        return StatusCode(result.StatusCode, result.Result);
+    }
+
+    [HttpPost("race-entries/{entryId:guid}/withdrawal/approve")]
+    public async Task<ActionResult> ApproveRaceWithdrawal(Guid entryId)
+    {
+        var result = await _raceEntryService.ReviewWithdrawalAsync(entryId, true, null);
+        return StatusCode(result.StatusCode, result.Result);
+    }
+
+    [HttpPost("race-entries/{entryId:guid}/withdrawal/reject")]
+    public async Task<ActionResult> RejectRaceWithdrawal(Guid entryId, [FromBody] EntryRejectRequest request)
+    {
+        var result = await _raceEntryService.ReviewWithdrawalAsync(entryId, false, request?.Reason);
         return StatusCode(result.StatusCode, result.Result);
     }
 }

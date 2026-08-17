@@ -40,6 +40,13 @@ public enum RegistrationStatus
     Rejected = 3
 }
 
+public enum RaceWithdrawalStatus
+{
+    Pending = 1,
+    Approved = 2,
+    Rejected = 3
+}
+
 public enum JockeyInvitationStatus
 {
     Pending = 1,

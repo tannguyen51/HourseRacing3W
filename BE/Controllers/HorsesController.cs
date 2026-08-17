@@ -61,7 +61,14 @@ public class HorsesController : ControllerBase
             JockeyConfirmed = e.JockeyConfirmed,
             JockeyName = e.Jockey?.User?.FullName ?? string.Empty,
             GateNumber = e.GateNumber,
-            FinishPosition = e.FinishPosition
+            FinishPosition = e.FinishPosition,
+            e.ScratchedAt,
+            e.ScratchReason,
+            WithdrawalStatus = e.WithdrawalStatus?.ToString(),
+            e.WithdrawalReason,
+            e.WithdrawalRequestedAt,
+            e.WithdrawalReviewedAt,
+            e.WithdrawalReviewNote
         }));
         return Ok(entries);
     }
@@ -311,9 +318,22 @@ public class HorsesController : ControllerBase
         return StatusCode(result.StatusCode, result.Result);
     }
 
+    [HttpPost("race-entries/{entryId:guid}/withdrawal-request")]
+    public async Task<ActionResult> RequestRaceWithdrawal(Guid entryId, [FromBody] RaceWithdrawalRequest request)
+    {
+        var ownerId = GetUserId();
+        var result = await _raceEntryService.RequestWithdrawalAsync(ownerId, entryId, request.Reason);
+        return StatusCode(result.StatusCode, result.Result);
+    }
+
     private Guid GetUserId()
     {
         var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return value == null ? Guid.Empty : Guid.Parse(value);
     }
+}
+
+public class RaceWithdrawalRequest
+{
+    public string? Reason { get; set; }
 }

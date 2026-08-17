@@ -3,6 +3,7 @@ import {
   getMyHorses,
   getMyRaceEntries,
   registerHorseForRace,
+  requestRaceWithdrawal,
 } from "../../services/ownerHorseApi";
 import { getOwnerTournaments } from "../../services/ownerApi";
 import { getTournamentRaces } from "../../services/adminApi";
@@ -44,6 +45,9 @@ function OwnerTournamentRegisterPage() {
   const [isTournamentLoading, setIsTournamentLoading] = useState(true);
   const [tournamentError, setTournamentError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [withdrawalEntry, setWithdrawalEntry] = useState(null);
+  const [withdrawalReason, setWithdrawalReason] = useState("");
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [msg, setMsg] = useState("");
 
   const loadRaces = async () => {
@@ -135,6 +139,10 @@ function OwnerTournamentRegisterPage() {
                 : (entry.status ?? entry.Status ?? "Pending") === "Rejected"
                   ? "Từ chối"
                   : "Chờ duyệt",
+            withdrawalStatus: entry.withdrawalStatus ?? entry.WithdrawalStatus ?? null,
+            withdrawalReason: entry.withdrawalReason ?? entry.WithdrawalReason ?? "",
+            withdrawalReviewNote: entry.withdrawalReviewNote ?? entry.WithdrawalReviewNote ?? "",
+            scratchedAt: entry.scratchedAt ?? entry.ScratchedAt ?? null,
             submitted:
               entry.submittedDate ??
               entry.SubmittedDate ??
@@ -157,6 +165,29 @@ function OwnerTournamentRegisterPage() {
     () => horses.find((horse) => horse.id === selectedHorseId),
     [horses, selectedHorseId],
   );
+
+  const handleWithdrawalRequest = async () => {
+    const reason = withdrawalReason.trim();
+    if (!withdrawalEntry || reason.length < 3) {
+      setMsg("Lỗi: Lý do rút lui phải có ít nhất 3 ký tự.");
+      return;
+    }
+    setIsWithdrawing(true);
+    try {
+      await requestRaceWithdrawal(withdrawalEntry.id, reason);
+      setRegistrations((items) => items.map((item) =>
+        item.id === withdrawalEntry.id
+          ? { ...item, withdrawalStatus: "Pending", withdrawalReason: reason }
+          : item));
+      setMsg("Đã gửi yêu cầu rút lui. Vui lòng chờ admin phê duyệt.");
+      setWithdrawalEntry(null);
+      setWithdrawalReason("");
+    } catch (err) {
+      setMsg(`Lỗi: ${err?.message || "Không thể gửi yêu cầu rút lui."}`);
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
 
   const selectedTournament = useMemo(
     () => tournaments.find((tournament) => tournament.id === selectedTournamentId),
@@ -467,6 +498,32 @@ function OwnerTournamentRegisterPage() {
                       >
                         {registration.status}
                       </strong>
+                      {registration.withdrawalStatus === "Pending" && (
+                        <small className="withdrawal-note">Đang chờ duyệt rút lui: {registration.withdrawalReason}</small>
+                      )}
+                      {registration.withdrawalStatus === "Rejected" && (
+                        <small className="withdrawal-note withdrawal-note--rejected">Yêu cầu rút lui bị từ chối{registration.withdrawalReviewNote ? `: ${registration.withdrawalReviewNote}` : "."}</small>
+                      )}
+                      {(registration.withdrawalStatus === "Approved" || registration.scratchedAt) && (
+                        <small className="withdrawal-note withdrawal-note--approved">Đã được duyệt rút khỏi cuộc đua.</small>
+                      )}
+                    </div>
+                    <div className="registration-actions">
+                      {registration.status === "Đã duyệt" &&
+                        registration.withdrawalStatus !== "Pending" &&
+                        registration.withdrawalStatus !== "Approved" &&
+                        !registration.scratchedAt && (
+                          <button
+                            type="button"
+                            className="withdraw-race-button"
+                            onClick={() => {
+                              setWithdrawalEntry(registration);
+                              setWithdrawalReason("");
+                            }}
+                          >
+                            Yêu cầu rút lui
+                          </button>
+                        )}
                     </div>
                   </article>
                 ))
@@ -531,6 +588,39 @@ function OwnerTournamentRegisterPage() {
                 disabled={isSubmitting}
               >
                 {isSubmitting ? "Đang gửi..." : "Xác nhận gửi"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {withdrawalEntry ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="withdraw-modal-title">
+          <div className="owner-modal">
+            <div className="modal-header">
+              <div>
+                <span className="badge">Yêu cầu admin phê duyệt</span>
+                <h3 id="withdraw-modal-title">Rút khỏi cuộc đua</h3>
+                <p className="muted">{withdrawalEntry.horse} · {withdrawalEntry.race}</p>
+              </div>
+              <button className="ghost-button" onClick={() => setWithdrawalEntry(null)} disabled={isWithdrawing}>Đóng</button>
+            </div>
+            <label className="withdrawal-reason-field">
+              <span>Lý do rút lui <strong>*</strong></span>
+              <textarea
+                value={withdrawalReason}
+                onChange={(event) => setWithdrawalReason(event.target.value)}
+                maxLength={500}
+                rows={5}
+                placeholder="Nhập lý do rút khỏi cuộc đua..."
+                autoFocus
+              />
+              <small>{withdrawalReason.trim().length}/500 ký tự</small>
+            </label>
+            <div className="modal-actions">
+              <button className="ghost-button" onClick={() => setWithdrawalEntry(null)} disabled={isWithdrawing}>Hủy</button>
+              <button className="withdraw-race-button" onClick={handleWithdrawalRequest} disabled={isWithdrawing || withdrawalReason.trim().length < 3}>
+                {isWithdrawing ? "Đang gửi..." : "Gửi yêu cầu rút lui"}
               </button>
             </div>
           </div>
