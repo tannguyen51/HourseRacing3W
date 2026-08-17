@@ -93,12 +93,12 @@ export default function TrackManagementPage() {
       </form>
       <div style={{padding:20,overflowX:"auto",background:"rgba(255,250,240,.96)",border:"1px solid rgba(143,100,32,.16)",borderRadius:12}}>
         <h3 style={{marginTop:0}}>Danh sách sân ({tracks.length})</h3>
-        <table className="admin-table"><thead><tr><th>Tên sân</th><th>Địa điểm</th><th>Chiều dài</th><th>Sức chứa</th><th>Mặt sân</th><th>Tiện ích / Mô tả</th><th>Thao tác</th></tr></thead>
+        <table className="admin-table"><thead><tr><th>Tên sân</th><th>Địa điểm</th><th>Chiều dài</th><th>Sức chứa</th><th>Số cuộc đua</th><th>Mặt sân</th><th>Tiện ích / Mô tả</th><th>Thao tác</th></tr></thead>
           <tbody>{tracks.map(track => <tr key={track.id ?? track.Id}>
             <td><strong>{track.name ?? track.Name}</strong></td><td>{track.location ?? track.Location ?? "—"}</td><td>{track.length ?? track.Length ? `${track.length ?? track.Length} m` : "—"}</td>
-            <td>{track.maxHorses ?? track.MaxHorses ?? 12} ngựa</td><td>{track.surface ?? track.Surface ?? "—"}</td>
+            <td>{track.maxHorses ?? track.MaxHorses ?? 12} ngựa</td><td><strong>{track.raceCount ?? track.RaceCount ?? 0}</strong> cuộc đua</td><td>{track.surface ?? track.Surface ?? "—"}</td>
             <td>{track.facilities ?? track.Facilities ?? track.description ?? track.Description ?? "—"}</td><td><div style={{display:"flex",gap:6}}><button className="ghost-button" onClick={()=>edit(track)}>Sửa</button><button className="admin-danger" onClick={()=>remove(track)}>Xóa</button></div></td>
-          </tr>)}{tracks.length===0&&<tr><td colSpan={7}>Chưa có sân đấu nào.</td></tr>}</tbody>
+          </tr>)}{tracks.length===0&&<tr><td colSpan={8}>Chưa có sân đấu nào.</td></tr>}</tbody>
         </table>
       </div>
     </div>
