@@ -24,8 +24,25 @@ public class TracksController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult> GetAll()
     {
-        var tracks = await _db.Tracks.OrderBy(t => t.Name).ToListAsync();
-        return Ok(new { success = true, data = tracks.Select(t => new { t.Id, t.Name, t.Description, t.Length, t.Location, t.MaxHorses, t.Surface, t.Facilities, t.CreatedAt }) });
+        var tracks = await _db.Tracks
+            .AsNoTracking()
+            .OrderBy(t => t.Name)
+            .Select(t => new
+            {
+                t.Id,
+                t.Name,
+                t.Description,
+                t.Length,
+                t.Location,
+                t.MaxHorses,
+                t.Surface,
+                t.Facilities,
+                t.CreatedAt,
+                RaceCount = t.Races.Count
+            })
+            .ToListAsync();
+
+        return Ok(new { success = true, data = tracks });
     }
 
     [HttpPost]
