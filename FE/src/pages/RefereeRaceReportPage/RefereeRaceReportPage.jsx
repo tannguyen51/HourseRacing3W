@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getMyAssignments } from "../../services/refereeAssignmentApi";
 import { createReport, getRaceReport, getRaceEntries, submitRaceResult } from "../../services/refereeApi";
+import { getRaceSimulation } from "../../services/simulationApi";
 import "./RefereeRaceReportPage.css";
 
 const REPORT_TYPES = [
@@ -71,6 +72,7 @@ export default function RefereeRaceReportPage() {
   // Submit result states
   const [resultEntries, setResultEntries] = useState([]);
   const [resultWinningHorseId, setResultWinningHorseId] = useState("");
+  const [simWinner, setSimWinner] = useState(null); // { horseId, name } theo mô phỏng
   const [resultSubmitting, setResultSubmitting] = useState(false);
   const [resultMsg, setResultMsg] = useState("");
 
@@ -114,18 +116,39 @@ export default function RefereeRaceReportPage() {
       .catch(() => setExistingReport(null));
   }, [selectedRaceId]);
 
-  // Load race entries for result submission
+  // Load race entries for result submission + tự điền ngựa thắng theo mô phỏng
   useEffect(() => {
     if (!selectedRaceId) {
       setResultEntries([]);
+      setSimWinner(null);
+      setResultWinningHorseId("");
       return;
     }
+    let cancelled = false;
+    setResultWinningHorseId("");
+    setSimWinner(null);
     getRaceEntries(selectedRaceId)
       .then((d) => {
+        if (cancelled) return;
         const list = Array.isArray(d) ? d : [];
         setResultEntries(list);
       })
-      .catch(() => setResultEntries([]));
+      .catch(() => { if (!cancelled) setResultEntries([]); });
+    getRaceSimulation(selectedRaceId)
+      .then((p) => {
+        if (cancelled) return;
+        const hrs = Array.isArray(p?.horses) ? p.horses : [];
+        if (hrs.length === 0) return;
+        const winner = [...hrs].sort(
+          (a, b) => (a.finishTimeSeconds ?? a.FinishTimeSeconds ?? Infinity) - (b.finishTimeSeconds ?? b.FinishTimeSeconds ?? Infinity)
+        )[0];
+        const wid = winner.horseId ?? winner.HorseId;
+        setSimWinner({ horseId: wid, name: winner.name ?? winner.Name ?? "" });
+        // chỉ tự điền nếu trọng tài chưa tự chọn
+        setResultWinningHorseId((prev) => (prev === "" ? wid : prev));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [selectedRaceId]);
 
   // Chart data — monthly count (simulated from recent reports)
@@ -386,6 +409,11 @@ export default function RefereeRaceReportPage() {
                     </option>
                   ))}
                 </select>
+                {simWinner && (
+                  <p className="rr-muted" style={{ marginTop: 8, fontSize: 12, color: "#047857", fontWeight: 600 }}>
+                    🏆 Theo mô phỏng, ngựa thắng là: {simWinner.name} — đã tự chọn sẵn. Bạn có thể đổi nếu có bất thường.
+                  </p>
+                )}
               </div>
               <button
                 type="submit"

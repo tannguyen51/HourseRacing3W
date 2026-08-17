@@ -14,12 +14,14 @@ public class RacesController : ControllerBase
     private readonly IRaceService _raceService;
     private readonly IRaceManagementService _raceManagementService;
     private readonly IRefereeService _refereeService;
+    private readonly IRaceSimulationService _simulationService;
 
-    public RacesController(IRaceService raceService, IRaceManagementService raceManagementService, IRefereeService refereeService)
+    public RacesController(IRaceService raceService, IRaceManagementService raceManagementService, IRefereeService refereeService, IRaceSimulationService simulationService)
     {
         _raceService = raceService;
         _raceManagementService = raceManagementService;
         _refereeService = refereeService;
+        _simulationService = simulationService;
     }
 
     [HttpGet]
@@ -43,6 +45,14 @@ public class RacesController : ControllerBase
     public async Task<ActionResult> GetRaceResult(Guid id)
     {
         var result = await _raceService.GetRaceResultAsync(id);
+        return StatusCode(result.StatusCode, result.Result);
+    }
+
+    [HttpGet("{id:guid}/simulation")]
+    [AllowAnonymous]
+    public async Task<ActionResult> GetRaceSimulation(Guid id)
+    {
+        var result = await _simulationService.GetAsync(id);
         return StatusCode(result.StatusCode, result.Result);
     }
 

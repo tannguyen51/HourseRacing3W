@@ -3,6 +3,7 @@ using System;
 using HorseRacing.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace HorseRacing.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260817140016_AddRaceSimulationFields")]
+    partial class AddRaceSimulationFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1027,23 +1030,6 @@ namespace HorseRacing.Migrations
 
                     b.Property<decimal?>("WeightCarried")
                         .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("WithdrawalReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime?>("WithdrawalRequestedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("WithdrawalReviewNote")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<DateTime?>("WithdrawalReviewedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int?>("WithdrawalStatus")
-                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 

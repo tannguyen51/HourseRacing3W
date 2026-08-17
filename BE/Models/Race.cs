@@ -60,6 +60,10 @@ public class Race
     [Column(TypeName = "decimal(5,2)")]
     public decimal MaxBallastWeight { get; set; } = 10m;
 
+    public int Laps { get; set; } = 2;
+
+    public Guid? WinnerOverrideHorseId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

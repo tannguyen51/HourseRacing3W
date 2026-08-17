@@ -1,6 +1,7 @@
 export const spectatorNavItems = [
   { to: "/", label: "Trang chủ", end: true },
   { to: "/spectator/tournaments", label: "Giải đấu" },
+  { to: "/spectator/live-race", label: "Theo dõi cuộc đua" },
   { to: "/spectator/schedule", label: "Lịch đua" },
   { to: "/spectator/live-ranking", label: "BXH trực tiếp" },
   { to: "/spectator/predictions", label: "Dự đoán" },

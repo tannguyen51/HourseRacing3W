@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace HorseRacing.Dtos;
 
@@ -28,6 +30,8 @@ public class CreateRaceRequest
     public decimal TargetWeight { get; set; } = 55m;
     public decimal WeightTolerance { get; set; } = 0.5m;
     public decimal MaxBallastWeight { get; set; } = 10m;
+    public int Laps { get; set; } = 2;
+    public Guid? WinnerOverrideHorseId { get; set; }
 }
 
 public class UpdateRaceRequest
@@ -44,6 +48,8 @@ public class UpdateRaceRequest
     public decimal? TargetWeight { get; set; }
     public decimal? WeightTolerance { get; set; }
     public decimal? MaxBallastWeight { get; set; }
+    public int? Laps { get; set; }
+    public Guid? WinnerOverrideHorseId { get; set; }
 }
 
 public class RaceDetailResponse
@@ -69,6 +75,31 @@ public class RaceDetailResponse
     public decimal TargetWeight { get; set; }
     public decimal WeightTolerance { get; set; }
     public decimal MaxBallastWeight { get; set; }
+    public int Laps { get; set; } = 2;
+    public Guid? WinnerOverrideHorseId { get; set; }
+}
+
+public class RaceSimulationResponse
+{
+    [JsonPropertyName("raceId")] public Guid RaceId { get; set; }
+    [JsonPropertyName("raceName")] public string RaceName { get; set; } = string.Empty;
+    [JsonPropertyName("laps")] public int Laps { get; set; } = 2;
+    [JsonPropertyName("distance")] public int Distance { get; set; }
+    [JsonPropertyName("trackLength")] public int TrackLength { get; set; }
+    [JsonPropertyName("actualStartTime")] public DateTime? ActualStartTime { get; set; }
+    [JsonPropertyName("actualStartTimeEpoch")] public double ActualStartTimeEpoch { get; set; }
+    [JsonPropertyName("horses")] public List<HorseSimulationDto> Horses { get; set; } = new();
+}
+
+public class HorseSimulationDto
+{
+    [JsonPropertyName("horseId")] public Guid HorseId { get; set; }
+    [JsonPropertyName("name")] public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("color")] public string? Color { get; set; }
+    [JsonPropertyName("gateNumber")] public int GateNumber { get; set; }
+    [JsonPropertyName("finishPosition")] public int FinishPosition { get; set; }
+    [JsonPropertyName("finishTimeSeconds")] public double FinishTimeSeconds { get; set; }
+    [JsonPropertyName("odds")] public decimal Odds { get; set; } = 1m;
 }
 
 public class JockeyAssignedRaceResponse

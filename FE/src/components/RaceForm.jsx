@@ -24,6 +24,8 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
     targetWeight: raceData?.targetWeight ?? raceData?.TargetWeight ?? 55,
     weightTolerance: raceData?.weightTolerance ?? raceData?.WeightTolerance ?? 0.5,
     maxBallastWeight: raceData?.maxBallastWeight ?? raceData?.MaxBallastWeight ?? 10,
+    laps: raceData?.laps ?? raceData?.Laps ?? 2,
+    winnerOverrideHorseId: raceData?.winnerOverrideHorseId ?? raceData?.WinnerOverrideHorseId ?? "",
     scheduledAt: toLocal(raceData?.scheduledAt || raceData?.ScheduledAt),
     scheduledEndAt: toLocal(raceData?.scheduledEndAt || raceData?.ScheduledEndAt || raceData?.actualEndTime || raceData?.ActualEndTime),
   });
@@ -36,6 +38,7 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
   });
 
   const [selectedRefereeIds, setSelectedRefereeIds] = useState(raceData?._selectedRefereeIds || []);
+  const [entryHorses, setEntryHorses] = useState([]);
 
   const loadTracks = async () => {
     try {
@@ -45,12 +48,48 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
     } catch { /* empty */ }
   };
 
+  const applyTrackParams = (track, prev) => {
+    const next = { ...prev };
+    const len = track.trackLength ?? track.TrackLength ?? track.length ?? track.Length;
+    const cap = track.trackMaxHorses ?? track.TrackMaxHorses ?? track.maxHorses ?? track.MaxHorses;
+    if (len != null) next.distance = Number(len);
+    if (cap != null) next.maxParticipants = Number(cap);
+    return next;
+  };
+
+  const selectTrack = (id) => {
+    const track = tracks.find((t) => (t.trackId ?? t.TrackId) === id);
+    setForm((prev) => (track ? applyTrackParams(track, { ...prev, trackId: id }) : { ...prev, trackId: id }));
+  };
+
+  // Edit mode: sau khi tải danh sách sân, đồng bộ chiều dài/sức chứa theo sân đã chọn
+  useEffect(() => {
+    if (!form.trackId || tracks.length === 0) return;
+    const track = tracks.find((t) => (t.trackId ?? t.TrackId) === form.trackId);
+    if (track) setForm((prev) => applyTrackParams(track, prev));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracks]);
+
   const loadReferees = async () => {
     try {
       const list = await request("/api/referees");
       setReferees(Array.isArray(list) ? list : list?.data ?? []);
     } catch { /* empty */ }
   };
+
+  // Chỉ khi sửa cuộc đua: lấy danh sách ngựa đã có trong cuộc đua để chọn "ngựa ép thắng"
+  useEffect(() => {
+    const raceId = raceData?.id ?? raceData?.Id;
+    if (!isEdit || !raceId) return;
+    (async () => {
+      try {
+        const res = await request(`/api/referees/race/${raceId}/entries`);
+        const list = Array.isArray(res?.data ?? res) ? (res?.data ?? res) : [];
+        setEntryHorses(list);
+      } catch { /* empty */ }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     loadTracks();
@@ -86,6 +125,11 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
     setError("");
 
     try {
+      // cho phép xoá "ngựa ép thắng" đã đặt trước (Guid.Empty = xoá; null = giữ nguyên)
+      const origOverride = raceData?.winnerOverrideHorseId ?? raceData?.WinnerOverrideHorseId ?? "";
+      let winnerOverrideSend = null;
+      if (form.winnerOverrideHorseId) winnerOverrideSend = form.winnerOverrideHorseId;
+      else if (origOverride) winnerOverrideSend = "00000000-0000-0000-0000-000000000000";
       const racePayload = {
         tournamentId: form.tournamentId,
         trackId: form.trackId || null,
@@ -95,6 +139,8 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
         targetWeight: Number(form.targetWeight),
         weightTolerance: Number(form.weightTolerance),
         maxBallastWeight: Number(form.maxBallastWeight),
+        laps: Number(form.laps) || 2,
+        winnerOverrideHorseId: winnerOverrideSend,
         scheduledAt: new Date(form.scheduledAt).toISOString(),
         scheduledEndAt: form.scheduledEndAt ? new Date(form.scheduledEndAt).toISOString() : null,
         roundNames: rounds.filter(r => r.name).map(r => r.name).join(","),
@@ -150,9 +196,14 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
           <div style={{marginBottom:16}}>
             <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"#34415b"}}>Đường đua</label>
             <div style={{display:"flex",gap:8}}>
-              <select required value={form.trackId} onChange={(e) => updateForm("trackId", e.target.value)} style={{flex:1,padding:10,borderRadius:8,border:"1px solid rgba(143,100,32,0.2)",fontSize:14}}>
+              <select required value={form.trackId} onChange={(e) => selectTrack(e.target.value)} style={{flex:1,padding:10,borderRadius:8,border:"1px solid rgba(143,100,32,0.2)",fontSize:14}}>
                 <option value="">-- Chọn sân đấu của giải --</option>
-                {tracks.map((t) => (<option key={t.trackId || t.TrackId} value={t.trackId || t.TrackId}>{t.trackName || t.TrackName}</option>))}
+                {tracks.map((t) => {
+                  const len = t.trackLength ?? t.TrackLength ?? t.length ?? t.Length;
+                  const cap = t.trackMaxHorses ?? t.TrackMaxHorses ?? t.maxHorses ?? t.MaxHorses;
+                  const meta = [len ? `${len}m` : null, cap ? `${cap} ngựa` : null].filter(Boolean).join(" · ");
+                  return (<option key={t.trackId ?? t.TrackId} value={t.trackId ?? t.TrackId}>{t.trackName ?? t.TrackName}{meta ? ` (${meta})` : ""}</option>);
+                })}
               </select>
             </div>
             <small style={{color:"#657086"}}>Danh sách sân đã được gắn khi tạo giải đấu.</small>
@@ -173,10 +224,11 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
             <button type="button" onClick={addRound} style={{background:"none",border:"none",color:"#8f6420",cursor:"pointer",fontSize:13,fontWeight:600,padding:0}}>+ Thêm vòng</button>
           </div>
 
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-            <Input label="Khoảng cách (m)" type="number" value={form.distance} onChange={(e) => updateForm("distance", e.target.value)} min="100" step="100" />
-            <Input label="Số ngựa tối đa" type="number" value={form.maxParticipants} onChange={(e) => updateForm("maxParticipants", e.target.value)} min="2" max="20" />
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:8}}>
+            <Input label="Khoảng cách (m)" type="number" value={form.distance} onChange={() => {}} disabled min="100" step="100" hint="Tự động lấy từ sân đấu" style={{background:"#f1f5f9",cursor:"not-allowed",color:"#94a3b8"}} />
+            <Input label="Số ngựa tối đa" type="number" value={form.maxParticipants} onChange={() => {}} disabled min="2" max="30" hint="Tự động lấy từ sân đấu" style={{background:"#f1f5f9",cursor:"not-allowed",color:"#94a3b8"}} />
           </div>
+          <p style={{margin:"0 0 16px",fontSize:12,color:"#657086"}}>Chiều dài và số ngựa tối đa được lấy từ sân đấu đã chọn, không thể sửa ở đây. Muốn thay đổi, vào mục <strong>Quản lý sân đấu</strong>.</p>
 
           <Input label="Thời gian bắt đầu" type="datetime-local" value={form.scheduledAt} onChange={(e) => updateForm("scheduledAt", e.target.value)} required />
           <Input label="Thời gian kết thúc (dự kiến)" type="datetime-local" value={form.scheduledEndAt} onChange={(e) => updateForm("scheduledEndAt", e.target.value)} required />
@@ -189,6 +241,25 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
               <Input label="Chì tối đa (kg)" type="number" value={form.maxBallastWeight} onChange={(e) => updateForm("maxBallastWeight", e.target.value)} min="0" max="20" step="0.1" required />
             </div>
             <small style={{color:"#657086"}}>Tổng tải gồm cân nặng kỵ sĩ, trang bị và chì bổ sung.</small>
+          </div>
+
+          {/* Cài đặt mô phỏng */}
+          <div style={{padding:16,borderRadius:10,background:"#f8fafc",border:"1px solid #e2e8f0",marginBottom:16}}>
+            <strong style={{display:"block",marginBottom:10,color:"#172033"}}>🏁 Cài đặt mô phỏng</strong>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,alignItems:"end"}}>
+              <Input label="Số vòng (Laps)" type="number" value={form.laps} onChange={(e) => updateForm("laps", e.target.value)} min="1" max="10" required />
+              <div style={{marginBottom:16}}>
+                <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"#34415b"}}>Ngựa bắt buộc thắng (tùy chọn)</label>
+                <select value={form.winnerOverrideHorseId} onChange={(e) => updateForm("winnerOverrideHorseId", e.target.value)} style={{width:"100%",padding:10,borderRadius:8,border:"1px solid rgba(143,100,32,0.2)",fontSize:13,background:"#fff"}}>
+                  <option value="">-- Ngẫu nhiên --</option>
+                  {entryHorses.map((h) => (
+                    <option key={h.horseId ?? h.HorseId} value={h.horseId ?? h.HorseId}>{h.horseName ?? h.HorseName}</option>
+                  ))}
+                </select>
+                {entryHorses.length === 0 && !isEdit && <small style={{color:"#657086"}}>Thêm ngựa vào cuộc đua rồi chỉnh thêm sau.</small>}
+              </div>
+            </div>
+            <small style={{color:"#657086"}}>Ngựa ép thắng chỉ tác động đến kết quả mô phỏng; trọng tài vẫn xác nhận kết quả cuối cùng.</small>
           </div>
 
           {/* Referees */}

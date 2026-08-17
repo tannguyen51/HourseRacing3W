@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using HorseRacing.Data;
+using HorseRacing.Hubs;
 using HorseRacing.Options;
 using HorseRacing.Repositories;
 using HorseRacing.Repositories.Interfaces;
@@ -23,6 +24,7 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
     });
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSignalR();
 builder.Services.AddSwaggerGen(options =>
 {
     options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
@@ -100,7 +102,8 @@ builder.Services.AddCors(options =>
             return false;
         })
         .AllowAnyHeader()
-        .AllowAnyMethod());
+        .AllowAnyMethod()
+        .AllowCredentials());
 });
 builder.Services.AddRateLimiter(options =>
 {
@@ -158,6 +161,7 @@ builder.Services.AddScoped<IViolationRecordService, ViolationRecordService>();
 builder.Services.AddScoped<IRaceReportService, RaceReportService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<ILiveResultService, LiveResultService>();
+builder.Services.AddScoped<IRaceSimulationService, RaceSimulationService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IAuditLogService, AuditLogService>();
 builder.Services.AddScoped<IPrizeService, PrizeService>();
@@ -227,6 +231,7 @@ app.UseAuthorization();
 
 app.MapHealthChecks("/health");
 app.MapControllers();
+app.MapHub<RaceHub>("/hubs/race");
 app.MapGet("/", () => Results.Redirect("/swagger"))
     .ExcludeFromDescription();
 
