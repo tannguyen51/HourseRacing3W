@@ -162,10 +162,10 @@ function TournamentDetailPage() {
               gap: 12, marginBottom: 24, padding: 20, borderRadius: 14,
               background: "rgba(143,100,32,0.05)", border: "1px solid rgba(143,100,32,0.1)"
             }}>
-              <StatBox icon="🏁" label="Cuộc đua" value={stats.raceCount ?? stats.RaceCount ?? 0} />
-              <StatBox icon="📝" label="Đăng ký" value={stats.entryCount ?? stats.EntryCount ?? 0} />
-              <StatBox icon="🐎" label="Ngựa" value={stats.horseCount ?? stats.HorseCount ?? 0} />
-              <StatBox icon="🏇" label="Kỵ sĩ" value={stats.jockeyCount ?? stats.JockeyCount ?? 0} />
+              <StatBox icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>} label="Cuộc đua" value={stats.raceCount ?? stats.RaceCount ?? 0} />
+              <StatBox icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M9 14h6"/><path d="M9 10h6"/></svg>} label="Đăng ký" value={stats.entryCount ?? stats.EntryCount ?? 0} />
+              <StatBox icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>} label="Ngựa" value={stats.horseCount ?? stats.HorseCount ?? 0} />
+              <StatBox icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>} label="Kỵ sĩ" value={stats.jockeyCount ?? stats.JockeyCount ?? 0} />
             </div>
           )}
 
