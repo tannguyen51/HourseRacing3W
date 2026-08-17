@@ -345,6 +345,10 @@ public class RaceManagementService : IRaceManagementService
                 {
                     return ServiceResult<bool>.Fail(400, "Kỵ sĩ chưa cập nhật cân nặng hợp lệ.");
                 }
+                if (!JockeyWeightEligibility.IsEligible(jockey.Weight))
+                {
+                    return ServiceResult<bool>.Fail(400, JockeyWeightEligibility.ErrorMessage(jockey.Weight));
+                }
                 if (request.EquipmentWeight < 0 || request.EquipmentWeight > 20)
                 {
                     return ServiceResult<bool>.Fail(400, "Trọng lượng trang bị phải từ 0 đến 20 kg.");

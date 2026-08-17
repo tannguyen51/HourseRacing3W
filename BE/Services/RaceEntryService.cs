@@ -57,6 +57,9 @@ public class RaceEntryService : IRaceEntryService
             .OrderByDescending(i => i.CreatedAt).FirstOrDefault();
         var selfJockey = acceptedInvitation == null ? await _jockeys.GetByUserIdAsync(userId) : null;
         var jockeyId = acceptedInvitation?.JockeyId ?? selfJockey?.Id;
+        var assignedJockey = acceptedInvitation?.Jockey ?? selfJockey;
+        if (jockeyId.HasValue && !JockeyWeightEligibility.IsEligible(assignedJockey?.Weight))
+            return ServiceResult<object>.Fail(400, JockeyWeightEligibility.ErrorMessage(assignedJockey?.Weight));
         if (jockeyId.HasValue && await _entries.HasJockeyScheduleConflictAsync(jockeyId.Value, race.ScheduledAt,
                 race.ScheduledEndAt ?? race.ScheduledAt.AddMinutes(30)))
             return ServiceResult<object>.Fail(409, "Kỵ sĩ đã có cuộc đua trùng thời gian");
@@ -75,6 +78,8 @@ public class RaceEntryService : IRaceEntryService
         if (entry == null) return ServiceResult<bool>.Fail(404, "Không tìm thấy đăng ký tham gia");
         if (entry.Race?.Status is not (RaceStatus.RegistrationOpen or RaceStatus.RegistrationClosed))
             return ServiceResult<bool>.Fail(400, "Không thể duyệt entry trong trạng thái hiện tại của cuộc đua");
+        if (entry.JockeyId.HasValue && !JockeyWeightEligibility.IsEligible(entry.Jockey?.Weight))
+            return ServiceResult<bool>.Fail(400, JockeyWeightEligibility.ErrorMessage(entry.Jockey?.Weight));
         var approvedCount = (await _entries.GetByRaceAsync(entry.RaceId)).Count(e => e.Status == RegistrationStatus.Approved && e.ScratchedAt == null);
         if (approvedCount >= entry.Race.MaxParticipants) return ServiceResult<bool>.Fail(409, "Cuộc đua đã đủ suất được duyệt");
         entry.Status = RegistrationStatus.Approved;
@@ -151,6 +156,10 @@ public class RaceEntryService : IRaceEntryService
                 if (e.Jockey?.Weight is null or <= 0)
                 {
                     reasons.Add("Kỵ sĩ chưa cập nhật cân nặng");
+                }
+                else if (!JockeyWeightEligibility.IsEligible(e.Jockey.Weight))
+                {
+                    reasons.Add(JockeyWeightEligibility.ErrorMessage(e.Jockey.Weight));
                 }
                 else if (race != null)
                 {
