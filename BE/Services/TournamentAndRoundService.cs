@@ -76,6 +76,7 @@ public class TournamentService : ITournamentService
                 StartDate = request.StartDate,
                 EndDate = request.EndDate,
                 RegistrationDeadline = request.RegistrationDeadline,
+                Venue = request.Venue,
                 ImageUrl = request.ImageUrl,
                 PrizePool = request.PrizePool ?? 0,
                 Status = TournamentStatus.Draft,
@@ -216,6 +217,8 @@ public class TournamentService : ITournamentService
                 tournament.RegistrationDeadline = request.RegistrationDeadline.Value;
             if (request.IsActive.HasValue)
                 tournament.IsActive = request.IsActive.Value;
+            if (request.Venue != null)
+                tournament.Venue = request.Venue;
             if (request.ImageUrl != null)
                 tournament.ImageUrl = request.ImageUrl;
             if (request.PrizePool.HasValue)
@@ -557,6 +560,7 @@ public class TournamentService : ITournamentService
             IsActive = tournament.IsActive,
             RoundCount = tournament.Rounds?.Count ?? 0,
             RaceCount = stats.RaceCount,
+            Venue = tournament.Venue,
             ImageUrl = tournament.ImageUrl,
             PrizePool = tournament.PrizePool,
             CreatedAt = tournament.CreatedAt,
@@ -586,6 +590,7 @@ public class TournamentService : ITournamentService
             IsActive = tournament.IsActive,
             RoundCount = tournament.Rounds?.Count ?? 0,
             RaceCount = tournament.Races?.Count ?? 0,
+            Venue = tournament.Venue,
             ImageUrl = tournament.ImageUrl,
             PrizePool = tournament.PrizePool,
             CreatedAt = tournament.CreatedAt,

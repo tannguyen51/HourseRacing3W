@@ -11,6 +11,7 @@ public class CreateTournamentRequest
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public DateTime? RegistrationDeadline { get; set; }
+    public string? Venue { get; set; }
     public string? ImageUrl { get; set; }
     public decimal? PrizePool { get; set; }
     public List<TournamentTrackRequest> Tracks { get; set; } = new();
@@ -39,6 +40,7 @@ public class UpdateTournamentRequest
     public DateTime? EndDate { get; set; }
     public DateTime? RegistrationDeadline { get; set; }
     public bool? IsActive { get; set; }
+    public string? Venue { get; set; }
     public string? ImageUrl { get; set; }
     public decimal? PrizePool { get; set; }
     public List<TournamentTrackRequest>? Tracks { get; set; }
@@ -54,6 +56,7 @@ public class TournamentResponse
     public bool IsActive { get; set; }
     public int RoundCount { get; set; }
     public int RaceCount { get; set; }
+    public string? Venue { get; set; }
     public string? ImageUrl { get; set; }
     public decimal PrizePool { get; set; }
     public DateTime CreatedAt { get; set; }
