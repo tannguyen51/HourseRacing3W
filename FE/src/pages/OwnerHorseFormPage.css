@@ -135,3 +135,37 @@
     grid-template-columns: 1fr;
   }
 }
+
+.form-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #172033;
+}
+
+.label-required::after {
+  content: " *";
+  color: #b91c1c;
+}
+
+.form-input {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(231,198,120,0.2);
+  background: rgba(255,250,240,0.92);
+  color: #172033;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.form-input::placeholder {
+  color: #596273;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: rgba(231,198,120,0.5);
+  box-shadow: 0 0 0 3px rgba(231,198,120,0.1);
+}
