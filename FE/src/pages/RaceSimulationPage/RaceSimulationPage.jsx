@@ -3,7 +3,7 @@ import { getRaces } from "../../services/spectatorApi";
 import { getRaceSimulation } from "../../services/simulationApi";
 import * as raceHub from "../../services/raceHub";
 import RaceTrack from "../../components/RaceSimulation/RaceTrack";
-import { formatCountdown, validateScript } from "../../components/RaceSimulation/engine";
+import { formatCountdown, getRunnerColor, validateScript } from "../../components/RaceSimulation/engine";
 import "./RaceSimulationPage.css";
 
 const PHASES = {
@@ -120,7 +120,7 @@ export default function RaceSimulationPage() {
         </div>
         <aside className="race-ranking-panel"><div className="race-ranking-panel__header"><div><span>XẾP HẠNG TRỰC TIẾP</span><strong>{horses.length} ngựa tham gia</strong></div><span className="race-ranking-panel__lap">Vòng {visibleRanking[0]?.lap ?? 1}/{maxLaps}</span></div>
           <div className="race-ranking-list">{visibleRanking.map((horse, index) => <div className={`race-ranking-row ${index < 3 ? `race-ranking-row--top${index + 1}` : ""}`} key={String(horse.horseId)}>
-            <span className="race-ranking-position">{index + 1}</span><span className="race-ranking-color" style={{ background: horse.color || "#b68b42" }} />
+            <span className="race-ranking-position">{index + 1}</span><span className="race-ranking-color" style={{ background: getRunnerColor(horse, index) }} />
             <div className="race-ranking-horse"><strong>{horse.name}</strong><span>Cửa {horse.gateNumber ?? horse.lane} · Tỷ lệ {Number(horse.odds ?? byId.get(String(horse.horseId))?.odds ?? 0).toFixed(2)}</span></div>
             <div className="race-ranking-distance"><strong>{horse.finished ? "Về đích" : `${Math.round(horse.distance ?? 0)}m`}</strong><span>{horse.finished && horse.finishTimeMs ? `${(horse.finishTimeMs / 1000).toFixed(1)}s` : `V${horse.lap ?? 1}`}</span></div>
           </div>)}</div>
