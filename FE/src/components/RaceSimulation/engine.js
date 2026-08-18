@@ -4,6 +4,27 @@
 
 export const MAX_LANES = 8;
 
+// Màu nhận diện thi đấu theo làn. Không dùng màu lông ngựa vì nhiều ngựa có thể
+// cùng màu; palette này bảo đảm 8 runner trên sân luôn dễ phân biệt.
+export const RUNNER_COLORS = [
+  "#ef4444", // đỏ
+  "#3b82f6", // xanh dương
+  "#22c55e", // xanh lá
+  "#f59e0b", // vàng cam
+  "#a855f7", // tím
+  "#06b6d4", // xanh cyan
+  "#ec4899", // hồng
+  "#84cc16", // xanh chanh
+];
+
+export function getRunnerColor(horse, fallbackIndex = 0) {
+  const lane = Number(horse?.lane);
+  const index = Number.isInteger(lane) && lane >= 1 && lane <= MAX_LANES
+    ? lane - 1
+    : Math.abs(Number(fallbackIndex) || 0) % MAX_LANES;
+  return RUNNER_COLORS[index];
+}
+
 // ── Hình học oval (ellipse) ──
 // theta = 2π * u (u∈[0,1), một vòng). Chiều chạy ngược kim đồng hồ trên màn hình.
 export function ovalPose(cx, cy, rx, ry, theta) {

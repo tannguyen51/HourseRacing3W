@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import {
   interpolateDistance,
+  getRunnerColor,
   laneRadii,
   ovalPose,
   progressState,
@@ -14,8 +15,8 @@ const CY = H / 2;
 const BASE_RX = 300;
 const BASE_RY = 172;
 
-function HorseMarker({ horse }) {
-  const color = resolveColor(horse.color) || "#b91c1c";
+function HorseMarker({ horse, runnerIndex }) {
+  const color = resolveColor(getRunnerColor(horse, runnerIndex));
   const dark = shade(color, -50);
   const lit = shade(color, 40);
   return (
@@ -210,14 +211,14 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
         </svg>
 
         {/* Runner markers */}
-        {horses.map((h) => (
+        {horses.map((h, index) => (
           <div
             key={h.horseId}
             ref={(el) => { markerRefs.current[h.horseId] = el; }}
             style={{ position: "absolute", left: -20, top: -15, width: 40, height: 30, willChange: "transform" }}
             title={h.name}
           >
-            <HorseMarker horse={h} />
+            <HorseMarker horse={h} runnerIndex={index} />
           </div>
         ))}
       </div>
