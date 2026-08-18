@@ -308,7 +308,7 @@ function Dashboard() {
               <span className="ad-kpi__label">{s.label}</span>
               <strong className="ad-kpi__value">{s.value}</strong>
               <span className={`ad-kpi__trend ${s.trend === "live" ? "ad-kpi__trend--live" : ""}`}>
-                {s.trend === "live" ? "● Đang diễn ra" : s.trend}
+                {s.trend === "live" ? "Đang diễn ra" : s.trend}
               </span>
             </div>
             {/* Mini sparkline */}
