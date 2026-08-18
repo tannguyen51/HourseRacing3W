@@ -4,269 +4,129 @@ import { getRaceSimulation } from "../../services/simulationApi";
 import * as raceHub from "../../services/raceHub";
 import RaceTrack from "../../components/RaceSimulation/RaceTrack";
 import { formatCountdown, validateScript } from "../../components/RaceSimulation/engine";
+import "./RaceSimulationPage.css";
 
 const PHASES = {
-  loading: { label: "Đang tải…", color: "#475569", bg: "rgba(71,85,105,0.12)" },
-  invalid: { label: "Script không hợp lệ", color: "#b91c1c", bg: "rgba(239,68,68,0.1)" },
-  gate: { label: "Chờ tại cổng xuất phát", color: "#475569", bg: "rgba(71,85,105,0.12)" },
-  countdown: { label: "Đếm ngược", color: "#b45309", bg: "rgba(230,165,74,0.18)" },
-  racing: { label: "Đang đua", color: "#b45309", bg: "rgba(230,165,74,0.15)" },
-  finished: { label: "Đã về đích — chờ kết quả chính thức", color: "#7c3aed", bg: "rgba(139,92,246,0.12)" },
-  official: { label: "Kết quả chính thức", color: "#047857", bg: "rgba(16,185,129,0.14)" },
-  resolved: { label: "Cuộc đua kết thúc", color: "#172033", bg: "rgba(16,185,129,0.12)" },
+  loading: ["Đang tải dữ liệu", "neutral"], invalid: ["Dữ liệu không hợp lệ", "danger"],
+  gate: ["Chờ tại cổng xuất phát", "neutral"], countdown: ["Chuẩn bị xuất phát", "warning"],
+  racing: ["Đang diễn ra", "live"], finished: ["Chờ xác nhận kết quả", "warning"],
+  official: ["Kết quả chính thức", "success"], resolved: ["Cuộc đua đã kết thúc", "success"],
+};
+const getId = (v) => v?.id ?? v?.Id ?? "";
+const getStatus = (v) => String(v?.status ?? v?.Status ?? "").toLowerCase();
+const formatRaceTime = (value) => {
+  if (!value || Number.isNaN(new Date(value).getTime())) return "Chưa cập nhật";
+  return new Intl.DateTimeFormat("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value));
 };
 
 export default function RaceSimulationPage() {
-  const [races, setRaces] = useState([]);
-  const [selectedId, setSelectedId] = useState("");
-  const [plan, setPlan] = useState(null);
-  const [validation, setValidation] = useState([]);
-  const [planError, setPlanError] = useState("");
-  const [ranking, setRanking] = useState([]);
-  const [phase, setPhase] = useState("loading");
-  const [winner, setWinner] = useState(null); // horseId chính thức
-  const [hubState, setHubState] = useState("connecting");
-  const [now, setNow] = useState(0);
-
-  const racesRef = useRef([]);
-  const selectedIdRef = useRef(selectedId);
+  const [races, setRaces] = useState([]), [selectedId, setSelectedId] = useState("");
+  const [plan, setPlan] = useState(null), [validation, setValidation] = useState([]), [planError, setPlanError] = useState("");
+  const [ranking, setRanking] = useState([]), [phase, setPhase] = useState("loading"), [winner, setWinner] = useState(null);
+  const [hubState, setHubState] = useState("connecting"), [now, setNow] = useState(0);
+  const racesRef = useRef([]), selectedIdRef = useRef(selectedId);
   useEffect(() => { racesRef.current = races; }, [races]);
   useEffect(() => { selectedIdRef.current = selectedId; }, [selectedId]);
 
   const loadRaces = async () => {
     try {
-      const list = (await getRaces()) ?? [];
-      const arr = Array.isArray(list) ? list : [];
-      setRaces(arr);
-      const running = arr.find((r) => String(r.status ?? r.Status ?? "").toLowerCase() === "inprogress");
-      setSelectedId((cur) => (cur ? cur : (running ? running.id ?? running.Id : arr[0]?.id ?? arr[0]?.Id ?? "")));
-    } catch { /* empty */ }
+      const result = await getRaces(), list = Array.isArray(result) ? result : [];
+      setRaces(list);
+      const running = list.find((race) => getStatus(race) === "inprogress");
+      setSelectedId((current) => current || getId(running) || getId(list[0]));
+    } catch { /* giữ dữ liệu hiện có */ }
   };
-
-  useEffect(() => {
-    loadRaces();
-    const int = setInterval(loadRaces, 10000);
-    return () => clearInterval(int);
-  }, []);
+  useEffect(() => { loadRaces(); const timer = setInterval(loadRaces, 10000); return () => clearInterval(timer); }, []);
 
   const refreshPlan = async (raceId) => {
     if (!raceId) return;
     try {
-      const p = await getRaceSimulation(raceId);
-      setPlan(p);
-      setValidation(validateScript(p));
-      setPlanError("");
-      setWinner(null);
-    } catch (err) {
-      setPlanError(err.message || "Không thể tải kế hoạch mô phỏng.");
-      setPlan(null);
-    }
+      const value = await getRaceSimulation(raceId);
+      setPlan(value); setValidation(validateScript(value)); setPlanError(""); setWinner(null);
+    } catch (error) { setPlanError(error.message || "Không thể tải dữ liệu mô phỏng cuộc đua."); setPlan(null); }
   };
+  useEffect(() => { if (selectedId) { setPlan(null); setRanking([]); setPhase("loading"); refreshPlan(selectedId); } }, [selectedId]);
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 200); return () => clearInterval(timer); }, []);
 
   useEffect(() => {
     if (!selectedId) return;
-    setPlan(null);
-    setRanking([]);
-    setPhase("loading");
-    refreshPlan(selectedId);
-  }, [selectedId]);
-
-  // đồng hồ 200ms cho countdown / elapsed
-  useEffect(() => {
-    const int = setInterval(() => setNow(Date.now()), 200);
-    return () => clearInterval(int);
-  }, []);
-
-  // hub events + connection state
-  useEffect(() => {
-    if (!selectedId) return;
-    const unsub = [];
-    const cur = () => selectedIdRef.current;
-
+    const cleanups = []; let active = true; const current = () => selectedIdRef.current;
     raceHub.on("RaceStarted", (payload) => {
-      const pid = payload?.raceId;
-      if (pid && String(pid) !== String(cur())) {
-        const r = racesRef.current.find((x) => String(x.id ?? x.Id) === String(cur()));
-        const s = String(r?.status ?? r?.Status ?? "").toLowerCase();
-        if (!r || s !== "inprogress") { setSelectedId(pid); return; }
+      const id = payload?.raceId;
+      if (id && String(id) !== String(current())) {
+        const selected = racesRef.current.find((race) => String(getId(race)) === String(current()));
+        if (!selected || getStatus(selected) !== "inprogress") { setSelectedId(id); return; }
       }
-      refreshPlan(cur());
-    }).then((u) => unsub.push(u));
+      refreshPlan(current());
+    }).then((cleanup) => active ? cleanups.push(cleanup) : cleanup?.());
     raceHub.on("RaceResultSubmitted", (payload) => {
-      if (String(payload?.raceId) === String(cur())) {
-        setWinner(payload.winningHorseId);
-        setPhase("official");
-      }
-    }).then((u) => unsub.push(u));
-    raceHub.on("RaceFinished", (payload) => {
-      if (String(payload?.raceId) === String(cur())) setPhase("resolved");
-    }).then((u) => unsub.push(u));
-
-    raceHub.subscribeConnectionState((s) => {
-      setHubState(s);
-      if (s === "reconnected") refreshPlan(cur());
-    });
-    unsub.push(() => raceHub.subscribeConnectionState(() => {}));
-
+      if (String(payload?.raceId) === String(current())) { setWinner(payload.winningHorseId); setPhase("official"); }
+    }).then((cleanup) => active ? cleanups.push(cleanup) : cleanup?.());
+    raceHub.on("RaceFinished", (payload) => { if (String(payload?.raceId) === String(current())) setPhase("resolved"); })
+      .then((cleanup) => active ? cleanups.push(cleanup) : cleanup?.());
+    cleanups.push(raceHub.subscribeConnectionState((state) => { setHubState(state); if (state === "reconnected") refreshPlan(current()); }));
     raceHub.joinRace(selectedId);
-    return () => {
-      raceHub.leaveRace(selectedId);
-      unsub.forEach((fn) => fn?.());
-    };
+    return () => { active = false; raceHub.leaveRace(selectedId); cleanups.forEach((cleanup) => cleanup?.()); };
   }, [selectedId]);
 
-  const horses = useMemo(() => (Array.isArray(plan?.horses) ? plan.horses : []), [plan]);
-  const byId = useMemo(() => new Map(horses.map((h) => [String(h.horseId), h])), [horses]);
-  const startsAtEpoch = Number(plan?.startsAtEpoch ?? 0);
-  const durationMs = Number(plan?.durationMs ?? 0);
-  const elapsedMs = startsAtEpoch ? now - startsAtEpoch : -1;
-  const countdownMs = startsAtEpoch ? startsAtEpoch - now : 0;
+  const selectedRace = useMemo(() => races.find((race) => String(getId(race)) === String(selectedId)), [races, selectedId]);
+  const horses = useMemo(() => Array.isArray(plan?.horses) ? plan.horses : [], [plan]);
+  const byId = useMemo(() => new Map(horses.map((horse) => [String(horse.horseId), horse])), [horses]);
+  const startsAtEpoch = Number(plan?.startsAtEpoch ?? 0), durationMs = Number(plan?.durationMs ?? 0);
+  const elapsedMs = startsAtEpoch ? now - startsAtEpoch : -1, countdownMs = startsAtEpoch ? startsAtEpoch - now : 0;
   const maxLaps = Math.max(1, Number(plan?.laps ?? 1));
-
-  // tự suy phase từ đồng hồ
   useEffect(() => {
-    if (!plan) { setPhase("loading"); return; }
-    if (validation.length > 0) { setPhase("invalid"); return; }
-    if (!startsAtEpoch) { setPhase("gate"); return; }
-    if (elapsedMs < 0) { setPhase("countdown"); return; }
-    if (elapsedMs >= durationMs) setPhase((p) => (p === "official" || p === "resolved" ? p : "finished"));
-    else setPhase((p) => (p === "racing" ? p : "racing"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [now, plan]);
-
-  // Ngựa thắng & xếp hạng hiển thị
-  const provisionalWinnerId = useMemo(
-    () => (plan?.finishOrder && plan.finishOrder.length ? plan.finishOrder[0] : null),
-    [plan],
-  );
-  const officialWinnerId = winner || provisionalWinnerId;
-  const winnerName = byId.get(String(officialWinnerId))?.name ?? "—";
+    if (!plan) setPhase("loading"); else if (validation.length) setPhase("invalid"); else if (!startsAtEpoch) setPhase("gate");
+    else if (elapsedMs < 0) setPhase("countdown");
+    else if (elapsedMs >= durationMs) setPhase((value) => ["official", "resolved"].includes(value) ? value : "finished"); else setPhase("racing");
+  }, [now, plan, validation.length, startsAtEpoch, elapsedMs, durationMs]);
 
   const displayRanking = useMemo(() => {
-    if (phase === "official" || phase === "resolved" || (phase === "finished" && ranking.length === 0)) {
-      // dùng thứ tự chính thức của backend
-      return (plan?.finishOrder ?? [])
-        .map((id, i) => {
-          const h = byId.get(String(id));
-          return { horseId: id, name: h?.name ?? "—", color: h?.color, lane: h?.lane ?? i + 1, distance: plan?.trackLength ?? 0, lap: maxLaps, finished: true, finishTimeMs: h?.finishTimeMs };
-        });
-    }
+    if (["official", "resolved"].includes(phase) || (phase === "finished" && !ranking.length)) return (plan?.finishOrder ?? []).map((id, index) => {
+      const horse = byId.get(String(id));
+      return { ...horse, horseId: id, name: horse?.name ?? "—", lane: horse?.lane ?? index + 1, distance: plan?.trackLength ?? 0, lap: maxLaps, finished: true };
+    });
     return ranking;
   }, [phase, ranking, plan, byId, maxLaps]);
+  const initialRanking = useMemo(() => horses.map((horse) => ({ ...horse, distance: 0, lap: 1, finished: false })).sort((a, b) => a.lane - b.lane), [horses]);
+  const visibleRanking = displayRanking.length ? displayRanking : initialRanking;
+  const progress = durationMs > 0 ? Math.max(0, Math.min(100, elapsedMs / durationMs * 100)) : 0;
+  const [phaseLabel, phaseTone] = PHASES[phase] ?? PHASES.loading;
+  const winnerId = winner || plan?.finishOrder?.[0];
 
-  const top3 = displayRanking.slice(0, 3);
-
-  return (
-    <div className="page" style={{ maxWidth: 1080, margin: "0 auto", padding: "20px 0" }}>
-      <h1 style={{ margin: "0 0 4px", fontSize: 24, color: "#172033" }}>🐎 Theo dõi cuộc đua</h1>
-      <p style={{ margin: "0 0 20px", fontSize: 13, color: "#657086" }}>
-        Mô phỏng trực tiếp giống game đua ngựa — tự bắt đầu khi admin khai cuộc đua.
-      </p>
-
-      {/* Chọn cuộc đua */}
-      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 18 }}>
-        <select
-          value={selectedId}
-          onChange={(e) => setSelectedId(e.target.value)}
-          style={{ flex: 1, minWidth: 260, padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(143,100,32,0.25)", fontSize: 14, background: "#fff" }}
-        >
-          {races.length === 0 && <option value="">Đang tải danh sách...</option>}
-          {races.map((r) => (
-            <option key={r.id ?? r.Id} value={r.id ?? r.Id}>{r.name ?? r.Name}</option>
-          ))}
-        </select>
-        <button onClick={() => refreshPlan(selectedId)} style={{ padding: "10px 18px", borderRadius: 10, border: "1px solid rgba(143,100,32,0.3)", background: "#fff", cursor: "pointer", fontSize: 13, color: "#172033", fontWeight: 600 }}>🔄 Làm mới</button>
+  return <main className="race-live-page">
+    <section className="race-live-hero">
+      <div><div className="race-live-eyebrow"><span /> TRUNG TÂM TRỰC TIẾP</div><h1>Theo dõi cuộc đua</h1><p>Diễn biến đồng bộ theo thời gian thực, bảng xếp hạng và thông số cuộc đua.</p></div>
+      <div className={`race-live-connection race-live-connection--${hubState}`}><i />{hubState === "reconnecting" ? "Đang kết nối lại" : hubState === "closed" ? "Mất kết nối" : "Dữ liệu trực tuyến"}</div>
+    </section>
+    <section className="race-live-toolbar">
+      <label className="race-live-select"><span>CUỘC ĐUA</span><select value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{!races.length && <option value="">Đang tải danh sách...</option>}{races.map((race) => <option key={getId(race)} value={getId(race)}>{race.name ?? race.Name}</option>)}</select></label>
+      <div className="race-live-toolbar__meta"><div><span>THỜI GIAN</span><strong>{formatRaceTime(selectedRace?.scheduledAt ?? selectedRace?.ScheduledAt)}</strong></div><div><span>ĐỊA ĐIỂM</span><strong>{selectedRace?.location ?? selectedRace?.Location ?? "Chưa cập nhật"}</strong></div></div>
+      <button className="race-live-refresh" onClick={() => refreshPlan(selectedId)}><span>↻</span>Làm mới</button>
+    </section>
+    {planError && <div className="race-live-alert race-live-alert--danger">⚠ {planError}</div>}
+    {phase === "invalid" && <div className="race-live-alert race-live-alert--danger"><strong>Không thể phát mô phỏng.</strong> {validation.join(" · ")}</div>}
+    {!plan && !planError ? <div className="race-live-loading"><span />Đang chuẩn bị đường đua...</div> : plan && phase !== "invalid" ? <section className="race-broadcast">
+      <div className="race-broadcast__header">
+        <div className="race-broadcast__title"><span className="race-broadcast__flag">🏁</span><div><small>RACE LIVE</small><h2>{plan.raceName}</h2></div></div>
+        <div className={`race-phase race-phase--${phaseTone}`}><i />{phaseLabel}</div>
+        <div className="race-clock"><span>{phase === "countdown" ? "BẮT ĐẦU SAU" : phase === "racing" ? "THỜI GIAN ĐUA" : "THỜI LƯỢNG"}</span><strong>{phase === "countdown" ? formatCountdown(countdownMs) : `${(Math.max(0, Math.min(elapsedMs, durationMs)) / 1000).toFixed(1)}s`}</strong></div>
       </div>
-
-      {planError && (
-        <div style={{ padding: "10px 14px", borderRadius: 10, background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#b91c1c", fontSize: 13, marginBottom: 16 }}>
-          {planError}
+      <div className="race-progress"><span style={{ width: `${progress}%` }} /></div>
+      <div className="race-broadcast__body">
+        <div className="race-track-panel"><RaceTrack script={plan} startsAtEpoch={startsAtEpoch} onRanking={setRanking} onFinished={() => setPhase((value) => value === "racing" ? "finished" : value)} />
+          {phase === "countdown" && <div className="race-track-overlay"><span>XUẤT PHÁT SAU</span><strong>{formatCountdown(countdownMs)}</strong></div>}
+          {phase === "gate" && <div className="race-track-overlay race-track-overlay--muted"><span>CÁC TAY ĐUA ĐÃ SẴN SÀNG</span><strong>Chờ hiệu lệnh</strong></div>}
         </div>
-      )}
-
-      {/* Thanh trạng thái */}
-      {plan && !planError && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "10px 16px", borderRadius: 12, marginBottom: 14, background: PHASES[phase].bg, border: "1px solid rgba(143,100,32,0.15)" }}>
-          <span style={{ width: 9, height: 9, borderRadius: "50%", background: PHASES[phase].color, animation: phase === "racing" ? "pulse 1s infinite" : "none" }} />
-          <strong style={{ color: PHASES[phase].color, fontSize: 14 }}>{PHASES[phase].label}</strong>
-          {phase === "countdown" && <span style={{ fontSize: 15, fontWeight: 700, color: "#b45309" }}>⏳ {formatCountdown(countdownMs)}</span>}
-          {phase === "racing" && elapsedMs >= 0 && (
-            <span style={{ marginLeft: "auto", fontSize: 13, color: "#172033" }}>
-              ⏱ {(elapsedMs / 1000).toFixed(1)}s · 🥇 {ranking[0]?.name ?? "…"}
-            </span>
-          )}
-          {phase === "finished" && (
-            <span style={{ marginLeft: "auto", fontSize: 13, color: "#7c3aed", fontWeight: 600 }}>🏆 {winnerName}</span>
-          )}
-          {hubState === "reconnecting" && (
-            <span style={{ marginLeft: "auto", fontSize: 12, color: "#b45309", fontWeight: 600 }}>⚠ Đang kết nối lại...</span>
-          )}
-        </div>
-      )}
-
-      {!plan && !planError ? (
-        <p style={{ color: "#657086", fontSize: 14 }}>Đang tải kế hoạch mô phỏng...</p>
-      ) : phase === "invalid" ? (
-        <div style={{ padding: 16, borderRadius: 12, border: "1px solid rgba(239,68,68,0.3)", background: "rgba(239,68,68,0.06)", color: "#b91c1c", fontSize: 13 }}>
-          <strong>Không thể phát mô phỏng — script không hợp lệ:</strong>
-          <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>{validation.map((v, i) => <li key={i}>{v}</li>)}</ul>
-        </div>
-      ) : (
-        <div style={{ position: "relative" }}>
-          {phase === "countdown" && (
-            <div style={{ position: "absolute", inset: 0, zIndex: 5, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-              <div style={{ background: "rgba(15,12,8,0.55)", borderRadius: 16, padding: "18px 32px", color: "#fff", fontSize: 34, fontWeight: 800 }}>
-                BẮT ĐẦU SAU {formatCountdown(countdownMs)}
-              </div>
-            </div>
-          )}
-          {(phase === "finished" || phase === "official") && top3.length > 0 && (
-            <div style={{ position: "absolute", inset: 0, zIndex: 6, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
-              <div style={{ background: "rgba(255,250,240,0.97)", borderRadius: 16, boxShadow: "0 16px 48px rgba(26,22,19,0.25)", padding: "20px 26px", minWidth: 260, border: "1px solid rgba(230,165,74,0.5)" }}>
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, color: "#7c3aed" }}>
-                  {phase === "official" ? "🏆 KẾT QUẢ CHÍNH THỨC" : "🏁 TOP 3 (chờ xác nhận)"}
-                </div>
-                {top3.map((h, i) => (
-                  <div key={String(h.horseId)} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 0" }}>
-                    <span style={{ width: 22, height: 22, borderRadius: "50%", background: i === 0 ? "#e6a54a" : i === 1 ? "#cbd5e1" : "#d97706", color: "#172033", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>{i + 1}</span>
-                    <strong style={{ fontSize: 14, color: "#172033" }}>{h.name}</strong>
-                    {h.finishTimeMs ? <span style={{ marginLeft: "auto", fontSize: 12, color: "#657086" }}>{(h.finishTimeMs / 1000).toFixed(1)}s</span> : null}
-                  </div>
-                ))}
-                <div style={{ marginTop: 10, fontSize: 12, color: "#657086" }}>
-                  {phase === "finished" ? "Trọng tài đang xác nhận kết quả..." : `Người thắng: ${winnerName}`}
-                </div>
-              </div>
-            </div>
-          )}
-
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 270px", gap: 16, alignItems: "start" }}>
-            <RaceTrack
-              script={plan}
-              startsAtEpoch={startsAtEpoch}
-              onRanking={setRanking}
-              onFinished={() => setPhase((p) => (p === "racing" ? "finished" : p))}
-            />
-
-            {/* Bảng xếp hạng */}
-            <div style={{ border: "1px solid rgba(143,100,32,0.16)", borderRadius: 14, background: "rgba(255,250,240,0.96)", overflow: "hidden" }}>
-              <div style={{ padding: "12px 14px", borderBottom: "1px solid rgba(143,100,32,0.1)", fontWeight: 700, fontSize: 13, color: "#172033" }}>Bảng xếp hạng</div>
-              <div>
-                {displayRanking.map((h, i) => (
-                  <div key={String(h.horseId)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", borderBottom: i < displayRanking.length - 1 ? "1px solid rgba(143,100,32,0.06)" : "none", background: phase === "official" && String(h.horseId) === String(officialWinnerId) ? "rgba(16,185,129,0.1)" : "transparent" }}>
-                    <span style={{ width: 20, height: 20, borderRadius: "50%", background: i < 3 ? "#e6a54a" : "#eef0f3", color: i < 3 ? "#172033" : "#657086", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>{i + 1}</span>
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#172033", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{h.name}</span>
-                    <span style={{ fontSize: 11, color: "#657086" }}>{h.finished ? "🏁 Đích" : `Lap ${h.lap}/${maxLaps}`}</span>
-                  </div>
-                ))}
-              </div>
-              <div style={{ padding: "10px 14px", fontSize: 12, color: "#657086", borderTop: "1px solid rgba(143,100,32,0.1)" }}>
-                {maxLaps} vòng · Sân {plan?.oneLapLength ?? 0}m/vòng
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+        <aside className="race-ranking-panel"><div className="race-ranking-panel__header"><div><span>XẾP HẠNG TRỰC TIẾP</span><strong>{horses.length} ngựa tham gia</strong></div><span className="race-ranking-panel__lap">Vòng {visibleRanking[0]?.lap ?? 1}/{maxLaps}</span></div>
+          <div className="race-ranking-list">{visibleRanking.map((horse, index) => <div className={`race-ranking-row ${index < 3 ? `race-ranking-row--top${index + 1}` : ""}`} key={String(horse.horseId)}>
+            <span className="race-ranking-position">{index + 1}</span><span className="race-ranking-color" style={{ background: horse.color || "#b68b42" }} />
+            <div className="race-ranking-horse"><strong>{horse.name}</strong><span>Cửa {horse.gateNumber ?? horse.lane} · Tỷ lệ {Number(horse.odds ?? byId.get(String(horse.horseId))?.odds ?? 0).toFixed(2)}</span></div>
+            <div className="race-ranking-distance"><strong>{horse.finished ? "Về đích" : `${Math.round(horse.distance ?? 0)}m`}</strong><span>{horse.finished && horse.finishTimeMs ? `${(horse.finishTimeMs / 1000).toFixed(1)}s` : `V${horse.lap ?? 1}`}</span></div>
+          </div>)}</div>
+        </aside>
+      </div>
+      <div className="race-stats"><div><span>ĐỘ DÀI MỖI VÒNG</span><strong>{Number(plan.oneLapLength).toLocaleString("vi-VN")} m</strong></div><div><span>TỔNG QUÃNG ĐƯỜNG</span><strong>{Number(plan.trackLength).toLocaleString("vi-VN")} m</strong></div><div><span>SỐ VÒNG</span><strong>{maxLaps} vòng</strong></div><div><span>DẪN ĐẦU</span><strong>{visibleRanking[0]?.name ?? "Chưa xác định"}</strong></div><div><span>NGƯỜI THẮNG</span><strong>{["finished", "official", "resolved"].includes(phase) ? byId.get(String(winnerId))?.name ?? "—" : "Chưa xác định"}</strong></div></div>
+    </section> : null}
+  </main>;
 }

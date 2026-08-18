@@ -161,7 +161,7 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [script, startsAtEpoch, oneLap, laps, trackLength, durationMs]);
+  }, [script, startsAtEpoch, oneLap, laps, trackLength, durationMs, horses]);
 
   // vòng làn để vẽ sân
   const laneGeometry = useMemo(
@@ -173,10 +173,10 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
   );
 
   return (
-    <div ref={wrapRef} style={{ position: "relative", width: "100%", aspectRatio: `${W} / ${H}`, overflow: "hidden" }}>
+    <div ref={wrapRef} className="race-track-canvas" style={{ position: "relative", width: "100%", aspectRatio: `${W} / ${H}`, overflow: "hidden" }}>
       <div ref={layerRef} style={{ position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0" }}>
         {/* Cỏ */}
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,#3f7d3a,#3a6f35)" }} />
+        <div style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 50% 45%,#2c674c,#194431 75%)" }} />
 
         {/* Sân — từng làn dạng ellipse */}
         <svg width={W} height={H} style={{ position: "absolute", inset: 0 }}>
@@ -186,9 +186,10 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
               <stop offset="100%" stopColor="#3f7d3a" />
             </radialGradient>
           </defs>
-          <ellipse cx={CX} cy={CY} rx={BASE_RX - 14} ry={BASE_RY - 14} fill="url(#grassInner)" />
+          <ellipse cx={CX} cy={CY} rx={BASE_RX + Math.max(0, horses.length - 1) * 10 + 18} ry={BASE_RY + Math.max(0, horses.length - 1) * 10 + 18} fill="#9a7043" stroke="#d9be89" strokeWidth="3" />
+          <ellipse cx={CX} cy={CY} rx={BASE_RX - 18} ry={BASE_RY - 18} fill="url(#grassInner)" stroke="#d9be89" strokeWidth="3" />
           {laneGeometry.map(({ lane, rx, ry }) => (
-            <ellipse key={lane} cx={CX} cy={CY} rx={rx} ry={ry} fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.2" strokeDasharray={lane === 1 ? "" : "5 5"} />
+            <ellipse key={lane} cx={CX} cy={CY} rx={rx} ry={ry} fill="none" stroke="rgba(255,245,220,0.58)" strokeWidth="1.2" strokeDasharray="6 5" />
           ))}
           <ellipse cx={CX} cy={CY} rx={laneOuterR(BASE_RX, BASE_RY, horses.length)} ry={laneOuterR(BASE_RY, BASE_RX, horses.length)} fill="none" stroke="rgba(30,20,10,0.35)" strokeWidth="6" />
           {/* Vạch xuất phát/đích: tia nằm ngang bên phải, mọi làn đều cắt tại u=0 */}
@@ -204,6 +205,8 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
               />
             ))}
           </g>
+          <text x={CX} y={CY - 10} textAnchor="middle" fill="rgba(255,255,255,.78)" fontSize="17" fontFamily="Georgia" fontWeight="700">{script?.raceName}</text>
+          <text x={CX} y={CY + 15} textAnchor="middle" fill="rgba(226,195,128,.9)" fontSize="10" fontWeight="700" letterSpacing="2">{laps} VÒNG · {Number(trackLength).toLocaleString("vi-VN")} MÉT</text>
         </svg>
 
         {/* Runner markers */}
