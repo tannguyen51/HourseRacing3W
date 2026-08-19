@@ -22,7 +22,8 @@ export function getRunnerColor(horse, fallbackIndex = 0) {
 }
 
 // ── Hình học oval (ellipse) ──
-// theta tăng → chạy clockwise trên màn hình (y hướng xuống). START_ANGLE = 9h.
+// theta tăng → chạy clockwise trên màn hình (y hướng xuống).
+// ovalPose với theta, heading là tiếp tuyến clockwise.
 export function ovalPose(cx, cy, rx, ry, theta) {
   const x = cx + rx * Math.cos(theta);
   const y = cy + ry * Math.sin(theta);
@@ -32,9 +33,9 @@ export function ovalPose(cx, cy, rx, ry, theta) {
   return { x, y, heading };
 }
 
-// u ∈ [0,1): quãng đường → góc trên oval, xuất phát 9h, chạy clockwise
+// u ∈ [0,1): quãng đường → góc trên oval, xuất phát 9h, chạy thuận chiều kim đồng hồ (clockwise)
 export function poseForProgress(cx, cy, rx, ry, u) {
-  const theta = START_ANGLE - 2 * Math.PI * u;
+  const theta = START_ANGLE + 2 * Math.PI * u;
   return ovalPose(cx, cy, rx, ry, theta);
 }
 

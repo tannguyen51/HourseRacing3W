@@ -459,14 +459,35 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
               </g>
             );
           })}
-          {/* finish gantry — vertical at 9h (left) */}
+          {/* finish line — đường ngang caro trắng-đen cắt toàn bộ bề rộng đường đua tại 9h */}
           <g>
-            <rect x={CX - BASE_RX - 1.5} y={CY - 36} width="3.5" height={72} rx="1.6" fill="#e8e8e8" stroke="#9a9a9a" strokeWidth="0.6" />
-            <rect x={CX - BASE_RX - 18} y={CY - 40} width="36" height="7.5" rx="1.5" fill="#1a1a1a" stroke="#e8d9a0" strokeWidth="0.7" />
-            <text x={CX - BASE_RX} y={CY - 34.8} textAnchor="middle" fontSize="4.4" fontWeight="900" fill="#f0d48a" letterSpacing="0.6">FINISH</text>
-            {Array.from({ length: 15 }, (_, i) => (
-              <rect key={`chk-${i}`} x={CX - BASE_RX - 1.2} y={CY - 28 + i * 3.9} width="2.4" height="3.9" fill={i % 2 === 0 ? "#111" : "#fff"} opacity="0.95" />
-            ))}
+            {/* đường caro ngang: nằm trên dirt, trải từ inner rail đến outer rail */}
+            {(() => {
+              const y = CY;
+              const innerX = CX - infieldRx;
+              const outerX = CX - outerRx;
+              // pattern đen-trắng xen kẽ ngang
+              const segs = 16;
+              const segW = (innerX - outerX) / segs;
+              return Array.from({ length: segs }, (_, i) => (
+                <rect
+                  key={`finish-strip-${i}`}
+                  x={outerX + i * segW}
+                  y={y - 2.2}
+                  width={segW + 0.6}
+                  height={4.4}
+                  fill={i % 2 === 0 ? "#fff" : "#111"}
+                  stroke="rgba(0,0,0,0.18)"
+                  strokeWidth="0.4"
+                />
+              ));
+            })()}
+            {/* cột/biển FINISH — đặt phía trên infield, không chắn ngựa */}
+            <g>
+              <rect x={CX - BASE_RX - 20} y={CY - 44} width="3" height="18" rx="1" fill="#d9d9d9" stroke="#8a8a8a" strokeWidth="0.5" />
+              <rect x={CX - BASE_RX - 22} y={CY - 52} width="40" height="10" rx="2" fill="#111" stroke="#e8c25a" strokeWidth="0.8" />
+              <text x={CX - BASE_RX - 2} y={CY - 45} textAnchor="middle" fontSize="6.5" fontWeight="900" fill="#f0d48a" letterSpacing="1.2">FINISH</text>
+            </g>
           </g>
           <text x={CX} y={CY - 6} textAnchor="middle" fontFamily="Georgia, serif" fontWeight="800" fontSize="18" fill="rgba(255,255,255,0.92)">{script?.raceName ?? "RACE"}</text>
           <text x={CX} y={CY + 10} textAnchor="middle" fontSize="7.2" fontWeight="800" letterSpacing="2.2" fill="rgba(255,255,255,0.72)">{laps} VÒNG · {Number(trackLength).toLocaleString("vi-VN")} M · {horses.length} NGỰA</text>
@@ -478,12 +499,12 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
           {horses.map((h) => {
             const { rx, ry } = laneRadii(BASE_RX, BASE_RY, h.lane);
             const p = poseForProgress(CX, CY, rx, ry, 0);
+            // bỏ số trên vạch đích — chỉ giữ màu lane ở border, không hiện gateNumber
             const gateColor = getRunnerColor(h, h.lane - 1);
             return (
-              <g key={`gate-${h.horseId}`} opacity="0.92">
-                <rect x={p.x - 10} y={p.y - 14} width="20" height="22" rx="1.5" fill="#2b2b2b" stroke={gateColor} strokeWidth="1.2" />
-                <rect x={p.x - 8} y={p.y - 11} width="16" height="16" rx="1" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="0.7" />
-                <text x={p.x} y={p.y - 0.5} textAnchor="middle" fontSize="7" fontWeight="900" fill="#fff">{h.gateNumber ?? h.lane}</text>
+              <g key={`gate-${h.horseId}`} opacity="0.88">
+                <rect x={p.x - 10} y={p.y - 11} width="20" height="18" rx="1.5" fill="#2b2b2b" stroke={gateColor} strokeWidth="1.1" />
+                <rect x={p.x - 8} y={p.y - 9} width="16" height="12" rx="1" fill="none" stroke="rgba(255,255,255,0.28)" strokeWidth="0.6" />
               </g>
             );
           })}
