@@ -90,6 +90,7 @@ public class RaceSimulationScriptDto
     [JsonPropertyName("baseSpeed")] public double BaseSpeed { get; set; } // m/s
     [JsonPropertyName("seed")] public string Seed { get; set; } = string.Empty;
     [JsonPropertyName("startsAtEpoch")] public double StartsAtEpoch { get; set; } // 0 = chưa bắt đầu
+    [JsonPropertyName("serverNowEpoch")] public double ServerNowEpoch { get; set; } // server time at response — dùng để bù clock skew
     [JsonPropertyName("durationMs")] public long DurationMs { get; set; }
     [JsonPropertyName("horses")] public List<RaceSimulationHorseScriptDto> Horses { get; set; } = new();
     [JsonPropertyName("finishOrder")] public List<Guid> FinishOrder { get; set; } = new();
@@ -108,6 +109,8 @@ public class RaceSimulationHorseScriptDto
     [JsonPropertyName("sectionMultipliers")] public double[] SectionMultipliers { get; set; } = new double[3];
     [JsonPropertyName("finishTimeMs")] public long FinishTimeMs { get; set; }
     [JsonPropertyName("odds")] public decimal Odds { get; set; } = 1m;
+    [JsonPropertyName("jockeyId")] public Guid? JockeyId { get; set; }
+    [JsonPropertyName("jockeyName")] public string? JockeyName { get; set; }
     [JsonPropertyName("checkpoints")] public List<RaceSimulationCheckpointDto> Checkpoints { get; set; } = new();
 }
 

@@ -70,6 +70,7 @@ public class RaceSimulationService : IRaceSimulationService
             script.StartsAtEpoch = race.ActualStartTime is { } start
                 ? new DateTimeOffset(DateTime.SpecifyKind(start, DateTimeKind.Utc)).ToUnixTimeMilliseconds()
                 : 0;
+            script.ServerNowEpoch = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             return ServiceResult<RaceSimulationScriptDto>.Ok(script);
         }
         catch (Exception ex)
@@ -169,6 +170,8 @@ public static class RaceSimulationEngine
                 SectionMultipliers = new[] { m1, m2, m3 },
                 FinishTimeMs = (long)Math.Round(finishSec * 1000),
                 Odds = entry.Odds,
+                JockeyId = entry.JockeyId,
+                JockeyName = entry.Jockey?.User?.FullName,
             });
             idx++;
         }
