@@ -14,6 +14,12 @@ const CY = H / 2 + 18;
 const BASE_RX = 390;
 const BASE_RY = 195;
 
+// wider track + smaller infield
+const OUTER_DIRT_PAD = 42;
+const OUTER_RAIL_PAD = 44;
+const INNER_RAIL_INSET = 22;
+const INFIELD_INSET = 38;
+
 function shade(hex, amt) {
   const n = String(hex).replace("#", "");
   if (!/^[0-9a-f]{6}$/i.test(n)) return hex;
@@ -33,14 +39,12 @@ function HorseWithJockey({ horse, runnerIndex, gallop }) {
   const bodyDark = shade(horseColor, -45);
   const bodyLight = shade(horseColor, 30);
 
-  // gallop cycle: 4 beats
   const p = gallop % 1;
   const s1 = Math.sin(p * Math.PI * 2);
   const s2 = Math.sin(p * Math.PI * 2 + Math.PI);
   const s3 = Math.sin(p * Math.PI * 2 + 0.55);
   const s4 = Math.sin(p * Math.PI * 2 + 0.55 + Math.PI);
   const bob = s1 * 1.1;
-  // leg extensions
   const f1 = s1 * 3.8;
   const f2 = s2 * 3.8;
   const h1 = s3 * 4.6;
@@ -50,31 +54,23 @@ function HorseWithJockey({ horse, runnerIndex, gallop }) {
     <svg width="62" height="42" viewBox="0 0 62 42" style={{ display: "block", overflow: "visible" }}>
       <ellipse cx="28" cy="39.5" rx="13" ry="2.2" fill="rgba(0,0,0,0.32)" />
       <g transform={`translate(0, ${bob.toFixed(1)})`}>
-        {/* hind legs */}
         <path d={`M18 24 L${(14 + h1).toFixed(1)} 36 M24 24 L${(20 + h2).toFixed(1)} 36`} stroke={bodyDark} strokeWidth="2.2" strokeLinecap="round" fill="none" />
-        {/* front legs */}
         <path d={`M36 24 L${(32 + f1).toFixed(1)} 36 M42 24 L${(38 + f2).toFixed(1)} 36`} stroke={bodyDark} strokeWidth="2.2" strokeLinecap="round" fill="none" />
-        {/* tail */}
         <path d="M10 20 Q2 16 4 8 Q7 12 10 15" fill={bodyDark} opacity="0.95" />
-        {/* body */}
         <ellipse cx="30" cy="22" rx="15" ry="7.5" fill={horseColor} stroke={bodyDark} strokeWidth="0.9" />
         <ellipse cx="30" cy="21" rx="11" ry="3.8" fill={bodyLight} opacity="0.32" />
-        {/* saddle cloth */}
         <rect x="22" y="16.5" width="15" height="11" rx="1.8" fill="#fefefe" stroke={silkDark} strokeWidth="0.7" />
         <rect x="23.2" y="17.7" width="12.6" height="8.6" rx="1.2" fill={silk} />
         <text x="29.5" y="24.8" textAnchor="middle" fontSize="8.5" fontWeight="900" fill="#fff" stroke="rgba(0,0,0,0.35)" strokeWidth="0.3" paintOrder="stroke">
           {horse.gateNumber ?? horse.lane ?? "?"}
         </text>
-        {/* neck */}
         <path d="M42 20 L52 10 L50 16 L44 24 Z" fill={horseColor} stroke={bodyDark} strokeWidth="0.7" />
         <path d="M42 19 Q47 12 52 10" stroke={bodyDark} strokeWidth="1.5" fill="none" strokeLinecap="round" opacity="0.9" />
-        {/* head */}
         <ellipse cx="53.5" cy="11.5" rx="5" ry="4.2" fill={horseColor} stroke={bodyDark} strokeWidth="0.8" />
         <ellipse cx="56.8" cy="12.8" rx="2.2" ry="1.5" fill={shade(horseColor, -20)} />
         <circle cx="55.2" cy="10.2" r="1" fill="#0f0f0f" />
         <circle cx="55.4" cy="10" r="0.35" fill="#fff" />
         <path d="M51 9.5 L56 12 L53 15" stroke="#1a1a1a" strokeWidth="0.6" fill="none" />
-        {/* jockey */}
         <path d="M33 14 L28 21 L30 23" stroke={silkDark} strokeWidth="1.7" fill="none" strokeLinecap="round" />
         <path d="M30 12 L38 7 L40 13 L32 17 Z" fill={silk} stroke={silkDark} strokeWidth="0.7" />
         <path d="M38 9 L46 13 L44 15" stroke={silkDark} strokeWidth="1.5" fill="none" strokeLinecap="round" />
@@ -89,9 +85,153 @@ function HorseWithJockey({ horse, runnerIndex, gallop }) {
   );
 }
 
+// ── Fireworks overlay ──
+function FireworksOverlay({ winner, onClose }) {
+  const bursts = useMemo(() => {
+    const colors = ["#ffd700", "#ff4d6a", "#4dc9ff", "#7cff6b", "#ff8a2e", "#c084fc"];
+    return Array.from({ length: 5 }, (_, i) => ({
+      x: CX + BASE_RX + (i % 2 === 0 ? 38 : -28) + (Math.random() * 16 - 8),
+      y: CY + (i - 2) * 28 + (Math.random() * 10 - 5),
+      color: colors[i % colors.length],
+      delay: i * 180,
+    }));
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => onClose?.(), 4200);
+    return () => clearTimeout(t);
+  }, [onClose]);
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        pointerEvents: "none",
+        overflow: "hidden",
+        zIndex: 5,
+      }}
+    >
+      <style>{`
+        @keyframes fw-burst { 0% { transform: scale(0); opacity:1 } 18% { opacity:1 } 100% { transform: scale(1); opacity:0 } }
+        @keyframes fw-particle { 0% { transform: translate(0,0) scale(1); opacity:1 } 100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity:0 } }
+        @keyframes fw-text { 0% { transform: translate(-50%,-50%) scale(0.6); opacity:0 } 18% { transform: translate(-50%,-50%) scale(1.08); opacity:1 } 30% { transform: translate(-50%,-50%) scale(1); opacity:1 } 85% { opacity:1 } 100% { transform: translate(-50%,-50%) scale(1); opacity:0 } }
+      `}</style>
+
+      {bursts.map((b, bi) => (
+        <div
+          key={bi}
+          style={{
+            position: "absolute",
+            left: b.x,
+            top: b.y,
+            width: 0,
+            height: 0,
+          }}
+        >
+          {/* glow */}
+          <div
+            style={{
+              position: "absolute",
+              left: -18,
+              top: -18,
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              background: b.color,
+              opacity: 0.22,
+              filter: "blur(6px)",
+              animation: `fw-burst 900ms ease-out ${b.delay}ms both`,
+            }}
+          />
+          {/* particles */}
+          {Array.from({ length: 14 }, (_, pi) => {
+            const angle = (pi / 14) * Math.PI * 2;
+            const dist = 38 + (pi % 3) * 10;
+            const dx = Math.cos(angle) * dist;
+            const dy = Math.sin(angle) * dist;
+            const size = pi % 3 === 0 ? 5 : 3.2;
+            return (
+              <div
+                key={pi}
+                style={{
+                  position: "absolute",
+                  left: -size / 2,
+                  top: -size / 2,
+                  width: size,
+                  height: size,
+                  borderRadius: "50%",
+                  background: b.color,
+                  boxShadow: `0 0 6px ${b.color}`,
+                  // @ts-ignore
+                  "--dx": `${dx}px`,
+                  "--dy": `${dy}px`,
+                  animation: `fw-particle 850ms cubic-bezier(0.15,0.8,0.3,1) ${b.delay + 90}ms both`,
+                }}
+              />
+            );
+          })}
+          {/* trail sparks */}
+          {Array.from({ length: 6 }, (_, pi) => {
+            const angle = (pi / 6) * Math.PI * 2 + 0.26;
+            const dist = 52;
+            const dx = Math.cos(angle) * dist;
+            const dy = Math.sin(angle) * dist;
+            return (
+              <div
+                key={`t-${pi}`}
+                style={{
+                  position: "absolute",
+                  left: -1,
+                  top: -1,
+                  width: 2,
+                  height: 2,
+                  borderRadius: 1,
+                  background: "#fff",
+                  // @ts-ignore
+                  "--dx": `${dx}px`,
+                  "--dy": `${dy}px`,
+                  animation: `fw-particle 750ms ease-out ${b.delay + 120}ms both`,
+                }}
+              />
+            );
+          })}
+        </div>
+      ))}
+
+      {/* winner banner */}
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          transform: "translate(-50%,-50%)",
+          zIndex: 6,
+          textAlign: "center",
+          animation: "fw-text 3800ms ease 400ms both",
+          background: "linear-gradient(135deg, #1a3324f2, #0f2418f2)",
+          border: "1px solid #e8c25a",
+          borderRadius: 16,
+          padding: "14px 26px",
+          boxShadow: "0 12px 40px rgba(0,0,0,0.45)",
+          backdropFilter: "blur(6px)",
+          whiteSpace: "nowrap",
+        }}
+      >
+        <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.18em", color: "#e8c25a" }}>VỀ NHẤT</div>
+        <div style={{ marginTop: 6, font: "800 22px Georgia, serif", color: "#fff", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>
+          🏆 {winner?.name ?? "—"}
+        </div>
+        {winner?.jockeyName && (
+          <div style={{ marginTop: 4, fontSize: 11, color: "#cfe3d3" }}>Kỵ sĩ {winner.jockeyName} · {(winner.finishTimeMs / 1000).toFixed(1)}s</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /**
- * Đường đua chân thực — top-down oval. Một rAF cho vị trí + ranking,
- * một ticker nhẹ cho animation phi nước đại. Không re-render React mỗi frame cho transform.
+ * Đường đua chân thực — top-down oval.
  */
 export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished }) {
   const wrapRef = useRef(null);
@@ -100,7 +240,9 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
   const onRankingRef = useRef(onRanking);
   const onFinishedRef = useRef(onFinished);
   const finishedSentRef = useRef(false);
+  const fireworksSentRef = useRef(false);
   const [gallopTick, setGallopTick] = useState(0);
+  const [fireworksWinner, setFireworksWinner] = useState(null);
 
   useEffect(() => { onRankingRef.current = onRanking; }, [onRanking]);
   useEffect(() => { onFinishedRef.current = onFinished; }, [onFinished]);
@@ -110,6 +252,13 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
   const oneLap = Number(script?.oneLapLength ?? script?.trackLength ?? 1);
   const trackLength = Number(script?.trackLength ?? 0);
   const durationMs = Number(script?.durationMs ?? 0);
+
+  const winnerId = script?.finishOrder?.[0];
+  const winnerHorse = useMemo(
+    () => horses.find((h) => String(h.horseId) === String(winnerId)) ?? null,
+    [horses, winnerId]
+  );
+  const winnerFinishMs = Number(winnerHorse?.finishTimeMs ?? durationMs ?? 0);
 
   // scale to container width
   useEffect(() => {
@@ -126,9 +275,11 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
     return () => ro.disconnect();
   }, []);
 
-  // reset to gate on script change
+  // reset on script change
   useEffect(() => {
     finishedSentRef.current = false;
+    fireworksSentRef.current = false;
+    setFireworksWinner(null);
     const gatePose = (lane) => {
       const { rx, ry } = laneRadii(BASE_RX, BASE_RY, lane);
       return ovalPose(CX, CY, rx, ry, 0);
@@ -140,14 +291,20 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
     }
   }, [script, horses]);
 
-  // gallop ticker — drives HorseWithJockey re-render (~16 fps)
+  // reset fireworks when race restarts (startsAtEpoch changes) or leaves racing
+  useEffect(() => {
+    fireworksSentRef.current = false;
+    setFireworksWinner(null);
+  }, [startsAtEpoch]);
+
+  // gallop ticker
   useEffect(() => {
     if (!horses.length || !startsAtEpoch) return;
     const id = setInterval(() => setGallopTick((v) => v + 1), 62);
     return () => clearInterval(id);
   }, [horses.length, startsAtEpoch]);
 
-  // rAF loop — position + ranking only (transform via direct DOM)
+  // rAF loop
   useEffect(() => {
     if (!horses.length) return;
     const reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -160,7 +317,6 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
       frame++;
       const elapsed = startsAtEpoch ? Date.now() - startsAtEpoch : -1;
 
-      // always update positions
       for (const h of horses) {
         const el = markerRefs.current[h.horseId];
         if (!el) continue;
@@ -171,6 +327,12 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
         el.style.transform = `translate3d(${pose.x.toFixed(1)}px, ${pose.y.toFixed(1)}px, 0) rotate(${((pose.heading * 180) / Math.PI).toFixed(1)}deg)`;
       }
 
+      // fireworks when winner crosses finish
+      if (!fireworksSentRef.current && winnerHorse && winnerFinishMs > 0 && elapsed >= winnerFinishMs) {
+        fireworksSentRef.current = true;
+        setFireworksWinner(winnerHorse);
+      }
+
       if (elapsed >= 0 && frame % emitEvery === 0) {
         const ranking = horses
           .map((h) => {
@@ -178,7 +340,7 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
             const st = progressState(d, oneLap, laps);
             return {
               horseId: h.horseId, name: h.name, color: h.color,
-              lane: h.lane, gateNumber: h.gateNumber, odds: h.odds,
+              lane: h.lane, gateNumber: h.gateNumber, odds: h.odds, jockeyName: h.jockeyName,
               distance: d, lap: st.lap, finished: st.finished, finishTimeMs: h.finishTimeMs,
             };
           })
@@ -194,18 +356,26 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [script, startsAtEpoch, oneLap, laps, durationMs, horses]);
+  }, [script, startsAtEpoch, oneLap, laps, durationMs, horses, winnerHorse, winnerFinishMs]);
 
   const laneGeometry = useMemo(
     () => horses.map((h) => ({ lane: h.lane, ...laneRadii(BASE_RX, BASE_RY, h.lane) })),
     [horses]
   );
 
-  // per-horse gallop phase (offset by lane so horses don't sync)
   const gallopFor = (horse, idx) => {
     const base = gallopTick * 0.11 + idx * 0.37 + (horse.lane ?? 1) * 0.19;
     return base % 1;
   };
+
+  const outerRx = BASE_RX + Math.max(0, horses.length - 1) * 10 + OUTER_DIRT_PAD;
+  const outerRy = BASE_RY + Math.max(0, horses.length - 1) * 10 + OUTER_DIRT_PAD;
+  const outerRailRx = outerRx + 2;
+  const outerRailRy = outerRy + 2;
+  const innerRailRx = BASE_RX - INNER_RAIL_INSET;
+  const innerRailRy = BASE_RY - INNER_RAIL_INSET;
+  const infieldRx = BASE_RX - INFIELD_INSET;
+  const infieldRy = BASE_RY - INFIELD_INSET;
 
   return (
     <div
@@ -214,7 +384,6 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
       style={{ position: "relative", width: "100%", aspectRatio: `${W} / ${H}`, overflow: "hidden", background: "#0d241b" }}
     >
       <div ref={layerRef} style={{ position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: "0 0" }}>
-        {/* sky + infield gradient */}
         <div
           style={{
             position: "absolute", inset: 0,
@@ -222,7 +391,6 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
               "linear-gradient(to bottom, #87bde6 0%, #b8d9f0 22%, #dbeaf6 32%, transparent 32%), radial-gradient(ellipse at 50% 55%, #1e4a32 0%, #143626 62%, #0d241b 100%)",
           }}
         />
-        {/* stands silhouette */}
         <svg width={W} height={H} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
           <path d={`M 0 0 L ${W} 0 L ${W} 168 Q ${W * 0.72} 148 ${W * 0.5} 155 Q ${W * 0.28} 148 0 168 Z`} fill="#0f2e22" opacity="0.55" />
           <path d={`M 18 138 Q ${W / 2} 122 ${W - 18} 138`} stroke="rgba(255,255,255,0.18)" strokeWidth="1.2" fill="none" />
@@ -254,20 +422,22 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
             </linearGradient>
           </defs>
 
-          <ellipse cx={CX} cy={CY} rx={BASE_RX + Math.max(0, horses.length - 1) * 10 + 28} ry={BASE_RY + Math.max(0, horses.length - 1) * 10 + 28} fill="url(#rtDirt)" />
-          <ellipse cx={CX} cy={CY} rx={BASE_RX + Math.max(0, horses.length - 1) * 10 + 28} ry={BASE_RY + Math.max(0, horses.length - 1) * 10 + 28} fill="url(#rtDirtGrain)" opacity="0.55" />
-          <ellipse cx={CX} cy={CY} rx={BASE_RX + Math.max(0, horses.length - 1) * 10 + 30} ry={BASE_RY + Math.max(0, horses.length - 1) * 10 + 30} fill="none" stroke="url(#rtRail)" strokeWidth="5" />
-          <ellipse cx={CX} cy={CY} rx={BASE_RX + Math.max(0, horses.length - 1) * 10 + 30} ry={BASE_RY + Math.max(0, horses.length - 1) * 10 + 30} fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
+          <ellipse cx={CX} cy={CY} rx={outerRx} ry={outerRy} fill="url(#rtDirt)" />
+          <ellipse cx={CX} cy={CY} rx={outerRx} ry={outerRy} fill="url(#rtDirtGrain)" opacity="0.55" />
+          <ellipse cx={CX} cy={CY} rx={outerRailRx} ry={outerRailRy} fill="none" stroke="url(#rtRail)" strokeWidth="5.5" />
+          <ellipse cx={CX} cy={CY} rx={outerRailRx} ry={outerRailRy} fill="none" stroke="rgba(0,0,0,0.28)" strokeWidth="1" />
           {laneGeometry.map(({ lane, rx, ry }) => (
             <ellipse key={`lane-line-${lane}`} cx={CX} cy={CY} rx={rx} ry={ry} fill="none" stroke="rgba(255,253,240,0.72)" strokeWidth="1.15" strokeDasharray={lane === 1 ? "0" : "7 7"} opacity={lane === 1 ? 0.95 : 0.62} />
           ))}
-          <ellipse cx={CX} cy={CY} rx={BASE_RX - 12} ry={BASE_RY - 12} fill="none" stroke="url(#rtRail)" strokeWidth="4.5" />
-          <ellipse cx={CX} cy={CY} rx={BASE_RX - 18} ry={BASE_RY - 18} fill="url(#rtInfield)" stroke="#e8d9a0" strokeWidth="1.2" />
-          <g opacity="0.22" stroke="#fff" strokeWidth="0.7">
-            <line x1={CX - (BASE_RX - 18)} y1={CY} x2={CX + (BASE_RX - 18)} y2={CY} />
-            <line x1={CX} y1={CY - (BASE_RY - 18)} x2={CX} y2={CY + (BASE_RY - 18)} />
+          <ellipse cx={CX} cy={CY} rx={innerRailRx} ry={innerRailRy} fill="none" stroke="url(#rtRail)" strokeWidth="4.5" />
+          <ellipse cx={CX} cy={CY} rx={infieldRx} ry={infieldRy} fill="url(#rtInfield)" stroke="#e8d9a0" strokeWidth="1.2" />
+          <g opacity="0.20" stroke="#fff" strokeWidth="0.7">
+            <line x1={CX - infieldRx} y1={CY} x2={CX + infieldRx} y2={CY} />
+            <line x1={CX} y1={CY - infieldRy} x2={CX} y2={CY + infieldRy} />
           </g>
+          {/* distance markers — hide 200 & 300 to declutter near finish */}
           {Array.from({ length: 8 }, (_, i) => {
+            if (i === 2 || i === 3) return null;
             const theta = Math.PI * 2 * (i / 8);
             const { rx, ry } = laneRadii(BASE_RX, BASE_RY, 1);
             const x = CX + (rx - 6) * Math.cos(theta);
@@ -279,16 +449,13 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
               </g>
             );
           })}
-          {/* finish gantry */}
+          {/* finish gantry — vertical only, no top numbers */}
           <g>
-            <rect x={CX + BASE_RX - 2} y={CY - 34} width="3.5" height="68" rx="1.6" fill="#e8e8e8" stroke="#9a9a9a" strokeWidth="0.6" />
-            <rect x={CX + BASE_RX - 18} y={CY - 38} width="36" height="7" rx="1.5" fill="#1a1a1a" stroke="#e8d9a0" strokeWidth="0.7" />
-            <text x={CX + BASE_RX} y={CY - 33.2} textAnchor="middle" fontSize="4.2" fontWeight="900" fill="#f0d48a" letterSpacing="0.6">FINISH</text>
-            {Array.from({ length: 14 }, (_, i) => (
-              <rect key={`chk-${i}`} x={CX + BASE_RX - 1.2} y={CY - 26 + i * 3.9} width="2.4" height="3.9" fill={i % 2 === 0 ? "#111" : "#fff"} opacity="0.95" />
-            ))}
-            {Array.from({ length: 8 }, (_, i) => (
-              <rect key={`chk2-${i}`} x={CX + (BASE_RX - 12) + i * 7} y={CY - 2.5} width="7" height="5" fill={i % 2 === 0 ? "#111" : "#fff"} stroke="rgba(0,0,0,0.25)" strokeWidth="0.3" />
+            <rect x={CX + BASE_RX - 2} y={CY - 36} width="3.5" height={72} rx="1.6" fill="#e8e8e8" stroke="#9a9a9a" strokeWidth="0.6" />
+            <rect x={CX + BASE_RX - 18} y={CY - 40} width="36" height="7.5" rx="1.5" fill="#1a1a1a" stroke="#e8d9a0" strokeWidth="0.7" />
+            <text x={CX + BASE_RX} y={CY - 34.8} textAnchor="middle" fontSize="4.4" fontWeight="900" fill="#f0d48a" letterSpacing="0.6">FINISH</text>
+            {Array.from({ length: 15 }, (_, i) => (
+              <rect key={`chk-${i}`} x={CX + BASE_RX - 1.2} y={CY - 28 + i * 3.9} width="2.4" height="3.9" fill={i % 2 === 0 ? "#111" : "#fff"} opacity="0.95" />
             ))}
           </g>
           <text x={CX} y={CY - 6} textAnchor="middle" fontFamily="Georgia, serif" fontWeight="800" fontSize="18" fill="rgba(255,255,255,0.92)">{script?.raceName ?? "RACE"}</text>
@@ -297,7 +464,6 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
           <text x={CX} y={CY + 37.5} textAnchor="middle" fontSize="10" fill="#f0d48a">🏇</text>
         </svg>
 
-        {/* starting gates */}
         <svg width={W} height={H} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
           {horses.map((h) => {
             const { rx, ry } = laneRadii(BASE_RX, BASE_RY, h.lane);
@@ -323,6 +489,10 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
             <HorseWithJockey horse={h} runnerIndex={idx} gallop={gallopFor(h, idx)} />
           </div>
         ))}
+
+        {fireworksWinner && (
+          <FireworksOverlay winner={fireworksWinner} onClose={() => setFireworksWinner(null)} />
+        )}
 
         <div style={{ position: "absolute", inset: 0, pointerEvents: "none", background: "radial-gradient(ellipse at 50% 50%, transparent 62%, rgba(0,0,0,0.22) 100%)" }} />
       </div>
