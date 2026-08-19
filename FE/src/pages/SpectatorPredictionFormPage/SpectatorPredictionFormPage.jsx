@@ -80,6 +80,9 @@ function SpectatorPredictionFormPage() {
   const [submitError, setSubmitError] = useState("");
   const [walletBalance, setWalletBalance] = useState(null);
   const [now, setNow] = useState(() => Date.now());
+  // Nhãn giai đoạn (roundNames) theo từng cuộc đua. API danh sách chưa trả
+  // roundNames nên phải lấy từ chi tiết; cache ở đây theo raceId.
+  const [roundByRaceId, setRoundByRaceId] = useState({});
 
   useEffect(() => {
     const updateClock = () => setNow(Date.now());
@@ -176,11 +179,100 @@ function SpectatorPredictionFormPage() {
     return () => { cancelled = true; };
   }, [selectedRace]);
 
+  // Bổ sung nhãn giai đoạn cho các cuộc đua của giải đang chọn (lấy từ chi tiết,
+  // vì API danh sách chưa trả roundNames). Chỉ lấy cái còn thiếu, có cache.
+  useEffect(() => {
+    if (!selectedTournament) return undefined;
+    let cancelled = false;
+    const missing = races.filter((r) => {
+      const tid = r.tournamentId ?? r.TournamentId;
+      const id = r.id ?? r.Id;
+      return tid === selectedTournament && roundByRaceId[id] === undefined;
+    });
+    if (missing.length === 0) return undefined;
+    (async () => {
+      const updates = {};
+      await Promise.all(
+        missing.map(async (r) => {
+          const id = r.id ?? r.Id;
+          try {
+            const detail = unwrapResponseData(await getRace(id));
+            updates[id] = (detail?.roundNames ?? detail?.RoundNames ?? "").trim();
+          } catch {
+            updates[id] = "";
+          }
+        }),
+      );
+      if (!cancelled) setRoundByRaceId((prev) => ({ ...prev, ...updates }));
+    })();
+    return () => { cancelled = true; };
+  }, [selectedTournament, races, roundByRaceId]);
+
+  // Nhãn giai đoạn của một cuộc đua. RoundNames có thể là chuỗi nhiều nhãn ghép
+  // bằng dấu phẩy — lấy nhãn đầu. Thiếu thì coi là một giai đoạn mặc định.
+  const STAGE_DEFAULT = "Vòng 1";
+  const stageLabelOf = (race) => {
+    const id = race.id ?? race.Id;
+    const raw = roundByRaceId[id];
+    const label = (raw ?? "").split(",")[0].trim();
+    return label || STAGE_DEFAULT;
+  };
+
+  // Các giai đoạn có thứ tự của giải đang chọn. Thứ tự theo thời gian sớm nhất
+  // của cuộc đua trong giai đoạn. "Đang mở" = giai đoạn sớm nhất còn cuộc đua
+  // chưa kết thúc; trước đó là "đã xong", sau đó là "đang khóa".
+  const stages = useMemo(() => {
+    const inTournament = races.filter(
+      (r) => (r.tournamentId ?? r.TournamentId) === selectedTournament,
+    );
+    const groups = new Map();
+    for (const r of inTournament) {
+      const key = stageLabelOf(r);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(r);
+    }
+    const doneStatuses = new Set(["finished", "cancelled"]);
+    const arr = [...groups.entries()].map(([key, list]) => {
+      const times = list
+        .map((r) => new Date(r.scheduledAt ?? r.ScheduledAt).getTime())
+        .filter(Number.isFinite);
+      const earliest = times.length ? Math.min(...times) : Infinity;
+      const allDone = list.every((r) =>
+        doneStatuses.has(String(r.status ?? r.Status ?? "").toLowerCase()),
+      );
+      return { key, races: list, earliest, allDone };
+    });
+    arr.sort((a, b) => a.earliest - b.earliest);
+    const currentIdx = arr.findIndex((s) => !s.allDone);
+    return arr.map((s, i) => ({
+      ...s,
+      state:
+        currentIdx === -1 || i < currentIdx
+          ? "done"
+          : i === currentIdx
+            ? "open"
+            : "locked",
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [races, selectedTournament, roundByRaceId]);
+
+  const openStageKey = useMemo(() => {
+    const open = stages.find((s) => s.state === "open");
+    return open ? open.key : null;
+  }, [stages]);
+
+  const prevStageLabel = useMemo(() => {
+    const openIdx = stages.findIndex((s) => s.state === "open");
+    return openIdx > 0 ? stages[openIdx - 1].key : null;
+  }, [stages]);
+
   const raceOptions = useMemo(() => {
     return races
       .filter((race) => {
         const tid = race?.tournamentId ?? race?.TournamentId;
         if (selectedTournament && tid !== selectedTournament) return false;
+        // Chỉ cho chọn cuộc đua thuộc giai đoạn đang mở (khi giải có nhiều giai đoạn).
+        if (stages.length > 1 && openStageKey && stageLabelOf(race) !== openStageKey) return false;
         // Only show races that can be bet on: Scheduled only
         const status = (race?.status ?? race?.Status ?? "").toLowerCase().trim();
         if (status === "finished" || status === "cancelled" || status === "inprogress" ||
@@ -202,7 +294,8 @@ function SpectatorPredictionFormPage() {
           canBet: canBetOnRace(status, scheduledAt, now),
         };
       });
-  }, [races, selectedTournament, now]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [races, selectedTournament, now, stages, openStageKey, roundByRaceId]);
 
   useEffect(() => {
     if (raceOptions.length === 0) {
@@ -312,6 +405,29 @@ function SpectatorPredictionFormPage() {
 
       {errorMessage && (
         <div className="pf-error-banner">{errorMessage}</div>
+      )}
+
+      {/* ---- Stage progression ---- */}
+      {stages.length > 1 && (
+        <section className="pf-stages">
+          <span className="pf-stages__label">Giai đoạn của giải · chỉ mở dự đoán cho giai đoạn hiện tại</span>
+          <div className="pf-stages__rail">
+            {stages.map((s) => (
+              <div key={s.key} className={`pf-stage pf-stage--${s.state}`}>
+                <span className="pf-stage__tag">
+                  {s.state === "done" ? "Đã xong" : s.state === "open" ? "Đang mở" : "Đang khóa"}
+                </span>
+                <strong className="pf-stage__name">{s.key}</strong>
+                <span className="pf-stage__meta">{s.races.length} cuộc đua</span>
+                <span className="pf-stage__hint">
+                  {s.state === "open" && "● Đang mở dự đoán"}
+                  {s.state === "done" && "✓ Đã kết thúc"}
+                  {s.state === "locked" && `🔒 Chờ ${prevStageLabel ?? "giai đoạn trước"} kết thúc`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* ---- Selects ---- */}
