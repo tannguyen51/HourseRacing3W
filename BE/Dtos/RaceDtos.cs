@@ -11,6 +11,9 @@ public class RaceSummaryDto
     public Guid TournamentId { get; set; }
     public DateTime ScheduledAt { get; set; }
     public string Status { get; set; } = string.Empty;
+    public string? Location { get; set; }
+    public int Distance { get; set; }
+    public int EntriesCount { get; set; }
 }
 
 // Additional Race DTOs for BE2

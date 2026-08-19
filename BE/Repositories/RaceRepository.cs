@@ -28,6 +28,7 @@ public class RaceRepository : IRaceRepository
         return _db.Races
             .Include(r => r.Entries)
             .Include(r => r.Track)
+            .Include(r => r.Tournament)
             .ToListAsync();
     }
 
@@ -46,6 +47,7 @@ public class RaceRepository : IRaceRepository
         return _db.Races
             .Include(r => r.Entries)
             .ThenInclude(e => e.Horse)
+            .Include(r => r.Tournament)
             .FirstOrDefaultAsync(r => r.Id == raceId);
     }
 
