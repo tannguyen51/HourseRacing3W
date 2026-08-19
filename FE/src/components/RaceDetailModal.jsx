@@ -206,7 +206,7 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
               {/* Kế hoạch mô phỏng */}
               {simulation?.finishOrder?.length > 0 && simulation?.horses?.length > 0 && started(st) && (
                 <div style={{marginBottom:22}}>
-                  <SectionTitle right={<span style={{fontSize:11,color:"#94a3b8"}}>Thứ tự dự kiến theo mô phỏng</span>}>🎬 Kế hoạch mô phỏng</SectionTitle>
+                  <SectionTitle right={<span style={{fontSize:11,color:"#94a3b8"}}>Thứ tự dự kiến theo mô phỏng</span>}><span style={{display:"flex",alignItems:"center",gap:6}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{color:"#e6a54a"}}><polygon points="5 3 19 12 5 21 5 3"/></svg> Kế hoạch mô phỏng</span></SectionTitle>
                   <div style={{padding:"6px 14px",borderRadius:12,border:"1px solid rgba(230,165,74,0.35)",background:"rgba(255,250,240,0.6)"}}>
                     {(simulation.finishOrder ?? [])
                       .map((id) => (simulation.horses ?? []).find((h) => String(h.horseId ?? h.HorseId) === String(id)))
@@ -215,7 +215,7 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
                         <div key={h.horseId ?? h.HorseId} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:i<(simulation.finishOrder?.length??1)-1?"1px solid rgba(143,100,32,0.08)":"none",fontSize:13}}>
                           <span style={{width:22,height:22,borderRadius:"50%",background:i===0?"#e6a54a":i===1?"#cbd5e1":i===2?"#d97706":"#f1f5f9",color:"#172033",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{i+1}</span>
                           <strong style={{color:"#172033"}}>{h.name ?? h.Name}</strong>
-                          {i===0 && <span style={{fontSize:11,color:"#b45309",fontWeight:600}}>🏆 dự kiến thắng</span>}
+                          {i===0 && <span style={{fontSize:11,color:"#b45309",fontWeight:600,display:"flex",alignItems:"center",gap:4}}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> dự kiến thắng</span>}
                           <span style={{marginLeft:"auto",fontSize:11,color:"#657086"}}>≈ {fmtNum((h.finishTimeMs ?? h.FinishTimeMs ?? 0) / 1000)}s</span>
                         </div>
                       ))}
@@ -239,7 +239,7 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
                       const rs = (r.status ?? r.Status ?? "").toLowerCase();
                       return (
                         <div key={i} style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4, fontSize: 13 }}>
-                          <span style={{ color: rs === "confirmed" ? "#10b981" : "#f59e0b", fontSize: 13 }}>{rs === "confirmed" ? "✅" : "⏳"}</span>
+                          <span style={{ color: rs === "confirmed" ? "#10b981" : "#f59e0b", fontSize: 13, display: "flex" }}>{rs === "confirmed" ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>}</span>
                           <span style={{ color: "#172033" }}>{r.refereeName ?? r.RefereeName}</span>
                           <span style={{ fontSize: 11, color: rs === "confirmed" ? "#047857" : "#b45309" }}>{rs === "confirmed" ? "Đã xác nhận" : "Chờ xác nhận"}</span>
                         </div>
@@ -256,7 +256,7 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
                   {report ? (
                     <div style={{ padding: "16px 18px", borderRadius: 12, border: "1px solid rgba(139,92,246,0.28)", background: "linear-gradient(135deg,rgba(139,92,246,0.08),rgba(255,250,240,0.4))" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                        <span style={{ fontSize: 15 }}>📋</span>
+                        <span style={{ color: "#6d28d9", display: "flex" }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></span>
                         <strong style={{ color: "#6d28d9", fontSize: 13 }}>Báo cáo đã được gửi</strong>
                       </div>
                       {(report.details ?? report.Details) ? (
@@ -264,7 +264,7 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
                       ) : null}
                       {(report.incidents ?? report.Incidents) ? (
                         <div style={{ padding: "8px 12px", borderRadius: 8, background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.14)", color: "#b91c1c", fontSize: 12, marginBottom: 8 }}>
-                          <strong style={{ display: "block", marginBottom: 2 }}>⚠️ Sự cố phát sinh</strong>
+                          <strong style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg> Sự cố phát sinh</strong>
                           {report.incidents ?? report.Incidents}
                         </div>
                       ) : null}
@@ -276,7 +276,7 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
                   ) : (
                     <div style={{ padding: "16px 18px", borderRadius: 12, border: "1px dashed rgba(143,100,32,0.35)", background: "rgba(255,250,240,0.5)" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 18 }}>⏳</span>
+                        <span style={{ color: "#92400e", display: "flex" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span>
                         <div>
                           <strong style={{ display: "block", color: "#92400e", fontSize: 13 }}>Đang chờ trọng tài gửi kết quả</strong>
                           <span style={{ fontSize: 12, color: "#657086" }}>Khi trọng tài nộp báo cáo, thông tin sẽ hiển thị tại đây.</span>
@@ -291,7 +291,7 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
                     if (!we) return null;
                     return (
                       <div style={{ marginTop: 10, padding: "14px 18px", borderRadius: 12, border: "1px solid rgba(16,185,129,0.28)", background: "linear-gradient(135deg,rgba(16,185,129,0.08),rgba(255,250,240,0.4))" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}><span style={{ fontSize: 15 }}>🏆</span><strong style={{ color: "#0f7a5a", fontSize: 13 }}>Kết quả trọng tài nộp</strong></div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}><span style={{ color: "#0f7a5a", display: "flex" }}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg></span><strong style={{ color: "#0f7a5a", fontSize: 13 }}>Kết quả trọng tài nộp</strong></div>
                         <strong style={{ color: "#172033", fontSize: 16 }}>{we.horseName ?? we.HorseName}</strong>
                         {(we.jockeyName ?? we.JockeyName) ? <span style={{ color: "#657086", fontSize: 13 }}> — {we.jockeyName ?? we.JockeyName}</span> : null}
                         {(result.notes ?? result.Notes) ? <p style={{ margin: "6px 0 0", color: "#657086", fontSize: 12 }}>{result.notes ?? result.Notes}</p> : null}

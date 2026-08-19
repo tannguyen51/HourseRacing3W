@@ -245,8 +245,8 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
 
           {/* Cài đặt mô phỏng */}
           <div style={{padding:16,borderRadius:10,background:"#f8fafc",border:"1px solid #e2e8f0",marginBottom:16}}>
-            <strong style={{display:"block",marginBottom:10,color:"#172033"}}>🏁 Cài đặt mô phỏng</strong>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,alignItems:"end"}}>
+            <strong style={{display:"flex",alignItems:"center",gap:6,marginBottom:10,color:"#172033"}}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{color:"#e6a54a"}}><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg> Cài đặt mô phỏng</strong>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,alignItems:"flex-start"}}>
               <Input label="Số vòng (Laps)" type="number" value={form.laps} onChange={(e) => updateForm("laps", e.target.value)} min="1" max="10" required />
               <div style={{marginBottom:16}}>
                 <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"#34415b"}}>Ngựa bắt buộc thắng (tùy chọn)</label>
