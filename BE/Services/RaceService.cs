@@ -31,7 +31,10 @@ public class RaceService : IRaceService
             Name = r.Name,
             TournamentId = r.TournamentId,
             ScheduledAt = r.ScheduledAt,
-            Status = r.Status.ToString()
+            Status = r.Status.ToString(),
+            Location = !string.IsNullOrEmpty(r.Location) ? r.Location : r.Tournament?.Venue,
+            Distance = r.Distance,
+            EntriesCount = r.Entries?.Count ?? 0
         }).ToList();
 
         return ServiceResult<object>.Ok(summaries);
@@ -43,6 +46,11 @@ public class RaceService : IRaceService
         if (race == null)
         {
             return ServiceResult<object>.Fail(StatusCodes.Status404NotFound, "Không tìm thấy cuộc đua");
+        }
+
+        if (string.IsNullOrEmpty(race.Location))
+        {
+            race.Location = race.Tournament?.Venue;
         }
 
         return ServiceResult<object>.Ok(race);
