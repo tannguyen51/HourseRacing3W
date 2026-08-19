@@ -39,6 +39,8 @@ export default function RaceSimulationPage() {
   const [now, setNow] = useState(0);
   // clock skew: serverNow - Date.now() at fetch time
   const [clockSkew, setClockSkew] = useState(0);
+  // demo: chạy mô phỏng cục bộ, không gọi BE, không ảnh hưởng kết quả thật
+  const [demoEpoch, setDemoEpoch] = useState(0);
   const racesRef = useRef([]);
   const selectedIdRef = useRef(selectedId);
   useEffect(() => { racesRef.current = races; }, [races]);
@@ -72,7 +74,7 @@ export default function RaceSimulationPage() {
     }
   };
   useEffect(() => {
-    if (selectedId) { setPlan(null); setRanking([]); setPhase("loading"); refreshPlan(selectedId); }
+    if (selectedId) { setPlan(null); setRanking([]); setPhase("loading"); setDemoEpoch(0); refreshPlan(selectedId); }
   }, [selectedId]);
 
   // server-synced clock
@@ -107,7 +109,10 @@ export default function RaceSimulationPage() {
   const selectedRace = useMemo(() => races.find((race) => String(getId(race)) === String(selectedId)), [races, selectedId]);
   const horses = useMemo(() => Array.isArray(plan?.horses) ? plan.horses : [], [plan]);
   const byId = useMemo(() => new Map(horses.map((horse) => [String(horse.horseId), horse])), [horses]);
-  const startsAtEpoch = Number(plan?.startsAtEpoch ?? 0);
+  // demoEpoch ưu tiên hơn startsAtEpoch của server — chỉ client-side
+  const effectiveStartsAt = demoEpoch || Number(plan?.startsAtEpoch ?? 0);
+  const startsAtEpoch = effectiveStartsAt;
+  const isDemo = demoEpoch !== 0;
   const durationMs = Number(plan?.durationMs ?? 0);
   const elapsedMs = startsAtEpoch ? now - startsAtEpoch : -1;
   const countdownMs = startsAtEpoch ? startsAtEpoch - now : 0;
@@ -153,6 +158,21 @@ export default function RaceSimulationPage() {
     else el.requestFullscreen?.().catch(() => {});
   };
 
+  const handleDemoStart = () => {
+    if (!plan || validation.length) return;
+    // chạy ngay — 1.5s countdown để thấy ngựa ở cổng
+    const startAt = Date.now() + clockSkew + 1500;
+    setDemoEpoch(startAt);
+    setRanking([]);
+    setWinner(null);
+  };
+
+  const handleDemoReset = () => {
+    setDemoEpoch(0);
+    setRanking([]);
+    setWinner(null);
+  };
+
   return (
     <main className="race-live-page">
       <section className="race-live-hero">
@@ -181,10 +201,24 @@ export default function RaceSimulationPage() {
         <div className="race-live-toolbar__actions">
           <button className="race-live-refresh" onClick={() => refreshPlan(selectedId)}><span>↻</span>Làm mới</button>
           <button className="race-live-fullscreen" onClick={handleFullscreen} title="Toàn màn hình">⛶ Toàn màn hình</button>
+          {plan && !validation.length && (
+            isDemo ? (
+              <button className="race-live-demo race-live-demo--reset" onClick={handleDemoReset} title="Thoát chế độ demo">↩ Đặt lại</button>
+            ) : (
+              <button
+                className="race-live-demo"
+                onClick={handleDemoStart}
+                title="Chạy mô phỏng demo ngay — chỉ trên máy bạn, không ảnh hưởng kết quả thật"
+              >
+                ▶ Demo: Bắt đầu ngay
+              </button>
+            )
+          )}
         </div>
       </section>
 
       {planError && <div className="race-live-alert race-live-alert--danger">⚠ {planError}</div>}
+      {isDemo && <div className="race-live-alert race-live-alert--demo">▶ Đang chạy <strong>DEMO cục bộ</strong> — chỉ hiển thị trên máy bạn, không ghi nhận kết quả, không ảnh hưởng báo cáo trọng tài. Bấm <strong>Đặt lại</strong> để thoát.</div>}
       {phase === "invalid" && <div className="race-live-alert race-live-alert--danger"><strong>Không thể phát mô phỏng.</strong> {validation.join(" · ")}</div>}
 
       {!plan && !planError ? (
