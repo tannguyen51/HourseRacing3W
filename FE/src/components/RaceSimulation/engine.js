@@ -26,9 +26,12 @@ export function getRunnerColor(horse, fallbackIndex = 0) {
 // ovalPose với theta, heading là tiếp tuyến clockwise.
 export function ovalPose(cx, cy, rx, ry, theta) {
   const x = cx + rx * Math.cos(theta);
-  const y = cy + ry * Math.sin(theta);
+  // Trục y của màn hình hướng xuống, vì vậy đảo dấu sin để chuyển động
+  // theo chiều đua tiêu chuẩn (ngược chiều kim đồng hồ).
+  const y = cy - ry * Math.sin(theta);
+  // đạo hàm theo theta → hướng tiếp tuyến
   const dx = -rx * Math.sin(theta);
-  const dy = ry * Math.cos(theta);
+  const dy = -ry * Math.cos(theta);
   const heading = Math.atan2(dy, dx);
   return { x, y, heading };
 }
