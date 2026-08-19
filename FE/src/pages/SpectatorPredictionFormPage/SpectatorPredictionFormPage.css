@@ -139,6 +139,47 @@
   font-weight: 500;
 }
 
+/* ---------- Success banner ---------- */
+.pf-success-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 20px;
+  border-radius: var(--pf-radius);
+  background: rgba(22, 163, 74, 0.08);
+  border: 1px solid rgba(22, 163, 74, 0.25);
+  color: #14532d;
+  font-size: 14px;
+}
+
+.pf-success-banner__icon {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #16a34a;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pf-success-banner__body strong {
+  font-weight: 700;
+}
+
+.pf-success-banner__body p {
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
+.pf-success-banner__note {
+  color: #3f6212;
+  font-size: 13px;
+}
+
 /* ---------- Status Warning ---------- */
 .pf-status-warning {
   display: flex;

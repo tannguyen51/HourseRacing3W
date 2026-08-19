@@ -3,6 +3,7 @@ import { unwrapResponseData } from "../../services/authRoleUtils";
 import {
   createPrediction,
   getActiveTournaments,
+  getMyPredictions,
   getRace,
   getRaces,
   getTournaments,
@@ -78,6 +79,12 @@ function SpectatorPredictionFormPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [submitError, setSubmitError] = useState("");
+  // Biên lai của ván cược vừa gửi thành công — trước đây gửi xong không báo gì,
+  // người dùng tưởng hỏng nên bấm gửi lại.
+  const [submitSuccess, setSubmitSuccess] = useState(null);
+  // Id các cuộc đua khán giả đã đặt cược. Mỗi người chỉ được 1 ván/cuộc đua,
+  // biết trước thì khỏi để họ điền xong mới báo lỗi.
+  const [betRaceIds, setBetRaceIds] = useState(() => new Set());
   const [walletBalance, setWalletBalance] = useState(null);
   const [now, setNow] = useState(() => Date.now());
   // Nhãn giai đoạn (roundNames) theo từng cuộc đua. API danh sách chưa trả
@@ -90,6 +97,18 @@ function SpectatorPredictionFormPage() {
     const intervalId = window.setInterval(updateClock, 1000);
 
     return () => window.clearInterval(intervalId);
+  }, []);
+
+  // Nạp các ván cược đã đặt để đánh dấu cuộc đua không đặt lại được nữa.
+  useEffect(() => {
+    getMyPredictions()
+      .then((response) => {
+        const items = unwrapResponseData(response);
+        if (!Array.isArray(items)) return;
+        const ids = items.map((p) => p?.raceId ?? p?.RaceId).filter(Boolean);
+        setBetRaceIds(new Set(ids));
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -285,17 +304,19 @@ function SpectatorPredictionFormPage() {
         const name = race?.name ?? race?.Name ?? "Cuộc đua";
         const scheduledAt = race?.scheduledAt ?? race?.ScheduledAt;
         const status = (race?.status ?? race?.Status ?? "").toLowerCase().trim();
+        const alreadyBet = betRaceIds.has(id);
         return {
           id,
           name,
           time: formatDateTime(scheduledAt),
           countdown: formatCountdown(scheduledAt, now),
           status,
-          canBet: canBetOnRace(status, scheduledAt, now),
+          alreadyBet,
+          canBet: !alreadyBet && canBetOnRace(status, scheduledAt, now),
         };
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [races, selectedTournament, now, stages, openStageKey, roundByRaceId]);
+  }, [races, selectedTournament, now, stages, openStageKey, roundByRaceId, betRaceIds]);
 
   useEffect(() => {
     if (raceOptions.length === 0) {
@@ -352,6 +373,9 @@ function SpectatorPredictionFormPage() {
     setIsSubmitting(true);
     setSubmitError("");
 
+    const horse = horseOptions.find((h) => h.id === selectedHorseId);
+    const raceName = selectedRaceDetails?.name ?? "";
+
     try {
       await createPrediction({
         raceId: selectedRace,
@@ -364,6 +388,14 @@ function SpectatorPredictionFormPage() {
         const b = bal?.data ?? bal;
         setWalletBalance(b?.balance ?? b?.Balance ?? 0);
       } catch { /* ignore */ }
+      // Khóa cuộc đua này lại: mỗi khán giả chỉ được một ván mỗi cuộc đua.
+      setBetRaceIds((prev) => new Set(prev).add(selectedRace));
+      setSubmitSuccess({
+        raceName,
+        horseName: horse?.name ?? "",
+        betAmount: bet,
+        odds: horse?.odds ?? null,
+      });
       setShowConfirmation(false);
       setBetAmount("");
       setSelectedHorseId(null);
@@ -456,6 +488,8 @@ function SpectatorPredictionFormPage() {
             value={selectedRace}
             onChange={(e) => {
               setSelectedRace(e.target.value);
+              setSubmitSuccess(null);
+              setSubmitError("");
               // Đồng bộ giải đấu theo race được chọn để hiển thị đúng thông tin
               const race = races.find((r) => (r.id ?? r.Id) === e.target.value);
               const tid = race?.tournamentId ?? race?.TournamentId;
@@ -464,14 +498,19 @@ function SpectatorPredictionFormPage() {
           >
             {raceOptions.map((r) => (
               <option key={r.id} value={r.id}>
-                {r.name} {!r.canBet ? " (Không thể cược)" : ""} — {r.time}
+                {r.name}
+                {r.alreadyBet ? " (Đã đặt dự đoán)" : !r.canBet ? " (Không thể cược)" : ""} — {r.time}
               </option>
             ))}
           </select>
           {selectedRaceDetails && !selectedRaceDetails.canBet && (
             <div className="pf-status-warning">
               <span className="pf-status-warning__icon">🔒</span>
-              <p>{getStatusMessage(selectedRaceDetails.status)}</p>
+              <p>
+                {selectedRaceDetails.alreadyBet
+                  ? "Bạn đã đặt dự đoán cho cuộc đua này. Mỗi cuộc đua chỉ được đặt một lần."
+                  : getStatusMessage(selectedRaceDetails.status)}
+              </p>
             </div>
           )}
         </div>
@@ -570,11 +609,37 @@ function SpectatorPredictionFormPage() {
           className="pf-btn-primary"
           disabled={!selectedHorseId || isSubmitting || !selectedRaceDetails?.canBet}
         >
-          {selectedRaceDetails && !selectedRaceDetails.canBet ? "Đã khóa cược" : isSubmitting ? "Đang gửi..." : "Gửi dự đoán"}
+          {selectedRaceDetails?.alreadyBet
+            ? "Đã đặt dự đoán"
+            : selectedRaceDetails && !selectedRaceDetails.canBet
+              ? "Đã khóa cược"
+              : isSubmitting
+                ? "Đang gửi..."
+                : "Gửi dự đoán"}
         </button>
       </form>
 
       {submitError && <div className="pf-error-banner">{submitError}</div>}
+
+      {submitSuccess && (
+        <div className="pf-success-banner">
+          <span className="pf-success-banner__icon">✓</span>
+          <div className="pf-success-banner__body">
+            <strong>Đã đặt dự đoán thành công</strong>
+            <p>
+              {submitSuccess.betAmount.toLocaleString()} điểm vào{" "}
+              <strong>{submitSuccess.horseName}</strong>
+              {submitSuccess.raceName ? ` — ${submitSuccess.raceName}` : ""}.
+              {submitSuccess.odds
+                ? ` Thắng sẽ nhận ${Math.round(submitSuccess.betAmount * submitSuccess.odds).toLocaleString()} điểm.`
+                : ""}
+            </p>
+            <p className="pf-success-banner__note">
+              Mỗi cuộc đua chỉ được đặt một lần, cuộc đua này đã khóa lại.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ---- Race info card ---- */}
       <div className="pf-info-card">
