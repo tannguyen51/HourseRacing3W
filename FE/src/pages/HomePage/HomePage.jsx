@@ -234,7 +234,7 @@ function HomePage() {
                   <tr key={r.id ?? r.Id}>
                     <td className="results-race-name">{r.name ?? r.Name}</td>
                     <td>{r.location ?? r.Location ?? "—"}</td>
-                    <td>{r.distance ?? r.Distance ?? "—"}m</td>
+                    <td>{(r.distance ?? r.Distance ?? 0) * Math.max(1, r.laps ?? r.Laps ?? 1) || "—"}m</td>
                     <td className="results-time">{formatTime(r.scheduledAt ?? r.ScheduledAt)}</td>
                     <td>
                       <Link to="/live-results" className="results-more-link">Kết quả →</Link>

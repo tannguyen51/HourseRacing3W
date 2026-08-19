@@ -141,7 +141,7 @@ function SpectatorDashboardPage() {
                   </p>
                   <div className="sd-card-footer">
                     <span className="sd-card-distance">
-                      {getField(r, "distance", "Distance") ? `${getField(r, "distance", "Distance")}m` : "-"}
+                      {getField(r, "distance", "Distance") ? `${getField(r, "distance", "Distance") * Math.max(1, getField(r, "laps", "Laps") || 1)}m` : "-"}
                     </span>
                     <span className="sd-card-time">{formatRaceTime(getField(r, "scheduledAt", "ScheduledAt"))}</span>
                   </div>
@@ -224,7 +224,7 @@ function SpectatorDashboardPage() {
                     <td>{getField(r, "location", "Location") || "-"}</td>
                     <td>
                       {getField(r, "distance", "Distance")
-                        ? `${getField(r, "distance", "Distance")}m`
+                        ? `${getField(r, "distance", "Distance") * Math.max(1, getField(r, "laps", "Laps") || 1)}m`
                         : "-"}
                     </td>
                     <td>

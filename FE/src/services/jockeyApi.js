@@ -109,7 +109,7 @@ export const normalizeInvitation = (invitation) => {
       read(track, "name", "Name") ??
       read(race, "location", "Location") ??
       "Chưa xác định",
-    distance: read(race, "distance", "Distance"),
+    distance: (read(race, "distance", "Distance") || 0) * Math.max(1, read(race, "laps", "Laps") || 1),
     maxParticipants: read(race, "maxParticipants", "MaxParticipants"),
     raceStatus: read(race, "status", "Status"),
     tournamentName: read(tournament, "name", "Name") ?? "Chưa xác định",
@@ -155,7 +155,7 @@ export const normalizeAssignedRace = (entry) => {
       read(entry, "track", "Track", "location", "Location") ??
       read(race, "location", "Location") ??
       "TBD Track",
-    distance: read(race, "distance", "Distance"),
+    distance: (read(race, "distance", "Distance") || 0) * Math.max(1, read(race, "laps", "Laps") || 1),
     maxParticipants: read(race, "maxParticipants", "MaxParticipants"),
     description: read(race, "description", "Description"),
     tournamentName: read(tournament, "name", "Name") ?? "Tournament TBD",

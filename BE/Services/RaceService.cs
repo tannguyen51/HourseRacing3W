@@ -34,6 +34,7 @@ public class RaceService : IRaceService
             Status = r.Status.ToString(),
             Location = !string.IsNullOrEmpty(r.Location) ? r.Location : r.Tournament?.Venue,
             Distance = r.Distance,
+            Laps = r.Laps,
             EntriesCount = r.Entries?.Count ?? 0
         }).ToList();
 

@@ -92,7 +92,7 @@ export default function TournamentDetail({ t, onBack, setMessage, getTournamentR
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"12px 18px",marginTop:14,paddingTop:14,borderTop:"1px solid rgba(143,100,32,0.12)"}}>
             <RaceInfo label="Thời gian" value={`${fmtDateTime(race.scheduledAt??race.ScheduledAt)}${(race.scheduledEndAt??race.ScheduledEndAt) ? ` → ${fmtDateTime(race.scheduledEndAt??race.ScheduledEndAt)}` : ""}`} />
             <RaceInfo label="Sân đấu" value={race.trackName??race.TrackName??race.location??race.Location} />
-            <RaceInfo label="Cự ly" value={`${race.distance??race.Distance??0} m`} />
+            <RaceInfo label="Cự ly" value={`${(race.distance??race.Distance??0) * Math.max(1, race.laps??race.Laps??1)} m`} />
             <RaceInfo label="Ngựa tham gia" value={`${race.entriesCount??race.EntriesCount??0}/${race.maxParticipants??race.MaxParticipants??12} ngựa`} />
             <RaceInfo label="Vòng đua" value={race.roundNames??race.RoundNames} />
             <RaceInfo label="Trọng tài" value={`${race.activeRefereesCount??race.ActiveRefereesCount??0} người`} />

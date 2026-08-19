@@ -39,7 +39,7 @@ export default function OwnerRaceConfirmationPage() {
     jockeyName: field(entry, "jockeyName", "JockeyName") ?? "Chưa có kỵ sĩ",
     scheduledAt: field(entry, "scheduledAt", "ScheduledAt"),
     location: field(entry, "location", "Location") ?? "Chưa xác định",
-    distance: field(entry, "distance", "Distance"),
+    distance: (field(entry, "distance", "Distance") || 0) * Math.max(1, field(entry, "laps", "Laps") || 1),
     maxParticipants: field(entry, "maxParticipants", "MaxParticipants"),
     raceStatus: field(entry, "raceStatus", "RaceStatus") ?? "",
     status: field(entry, "status", "Status") ?? "Pending",

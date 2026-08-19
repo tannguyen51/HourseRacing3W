@@ -226,7 +226,7 @@ function TournamentDetailPage() {
                           }}>{statusLabel_(raceStatus)}</span>
                         </div>
                         <p style={{ margin: 0, fontSize: 13, color: "#657086" }}>
-                          {fmtDate(race.scheduledAt ?? race.ScheduledAt)} · {(race.distance ?? race.Distance ?? 0)}m
+                          {fmtDate(race.scheduledAt ?? race.ScheduledAt)} · {(race.distance ?? race.Distance ?? 0) * Math.max(1, race.laps ?? race.Laps ?? 1)}m
                           · {race.location ?? race.Location ?? "Chưa có địa điểm"}
                           · {entries.length > 0 ? `${entries.length} ngựa` : `${race.entriesCount ?? race.EntriesCount ?? 0} ngựa`}
                         </p>

@@ -13,6 +13,7 @@ public class RaceSummaryDto
     public string Status { get; set; } = string.Empty;
     public string? Location { get; set; }
     public int Distance { get; set; }
+    public int Laps { get; set; }
     public int EntriesCount { get; set; }
 }
 

@@ -48,7 +48,7 @@ function RaceSchedulePage() {
               </div>
               <div className="race-meta">
                 <span>{r.location ?? r.Location ?? "Chưa xác định"}</span>
-                <span>{r.distance ?? r.Distance ?? "-"}m</span>
+                <span>{(r.distance ?? r.Distance ?? 0) * Math.max(1, r.laps ?? r.Laps ?? 1) || "-"}m</span>
                 <strong>{fDate(r.scheduledAt ?? r.ScheduledAt)}</strong>
               </div>
             </div>
