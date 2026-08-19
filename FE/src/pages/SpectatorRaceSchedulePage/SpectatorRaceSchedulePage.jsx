@@ -75,11 +75,13 @@ const getStatusMeta = (status) => {
 const mapRace = (r) => {
   const scheduledAt = r?.scheduledAt ?? r?.ScheduledAt;
   const status = r?.status ?? r?.Status ?? "Scheduled";
+  const baseDist = r?.distance ?? r?.Distance ?? 0;
+  const laps = r?.laps ?? r?.Laps ?? 1;
   return {
     id: r?.id ?? r?.Id,
     name: r?.name ?? r?.Name ?? "Cuộc đua",
     location: r?.location ?? r?.Location ?? "Địa điểm chưa xác định",
-    distance: r?.distance ?? r?.Distance ?? 0,
+    distance: baseDist * Math.max(1, laps),
     scheduledAt,
     status,
     entriesCount: r?.entriesCount ?? r?.EntriesCount ?? 0,
@@ -187,11 +189,13 @@ function SpectatorRaceSchedulePage() {
           "Chưa xác định",
         gate: e?.gate ?? e?.Gate ?? e?.status ?? e?.Status ?? "—",
       }));
+      const detailDist = detail?.distance ?? detail?.Distance ?? race.distance;
+      const detailLaps = detail?.laps ?? detail?.Laps ?? 1;
       setDetailRace({
         ...race,
         name: detail?.name ?? detail?.Name ?? race.name,
         location: detail?.location ?? detail?.Location ?? race.location,
-        distance: detail?.distance ?? detail?.Distance ?? race.distance,
+        distance: detailDist * Math.max(1, detailLaps),
         status: detail?.status ?? detail?.Status ?? race.status,
         horses,
         loading: false,
