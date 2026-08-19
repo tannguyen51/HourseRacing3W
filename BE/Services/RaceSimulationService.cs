@@ -87,8 +87,8 @@ public class RaceSimulationService : IRaceSimulationService
 /// </summary>
 public static class RaceSimulationEngine
 {
-    public const int Version = 2;
-    public const int CheckpointCount = 120;
+    public const int Version = 3;
+    public const int CheckpointCount = 180;
     /// <summary>Góc xuất phát 9h = π (trái). RaceTrack.jsx dùng cùng hằng START_ANGLE.</summary>
     public const double StartAngle = Math.PI;
 
@@ -113,11 +113,9 @@ public static class RaceSimulationEngine
     public static List<RaceSimulationCheckpointDto> GenerateCheckpointsFlutter(
         double total, double baseSpeed,
         double m1, double m2, double m3,
-        double flutterAmp, double[] flutterPhase, // per-horse random
+        double flutterAmp, double[] flutterPhase, // per-horse random: 2 phần tử
         double factor = 1.0, int count = CheckpointCount)
     {
-        // Build time by integrating 1/speed; flutter modulates speed per segment
-        // flutterPhase[0..2] in [0,1) — offset trong chu kỳ sin
         var pts = new List<RaceSimulationCheckpointDto>(count + 1);
         double tAcc = 0;
         double prevD = 0;
@@ -127,21 +125,18 @@ public static class RaceSimulationEngine
         {
             var d = Math.Round(total * k / count, 3);
             var midD = (prevD + d) * 0.5;
-            var progress = midD / total; // 0..1
+            var progress = midD / total;
 
-            // base multiplier theo đoạn
             double baseM;
             if (progress < 0.35) baseM = m1;
             else if (progress < 0.70) baseM = m2;
             else baseM = m3;
 
-            // flutter: sin wave với tần số khác nhau, biên độ giảm dần về cuối để finish không quá loạn
-            double amp = flutterAmp * (1 - progress * 0.3);
+            double amp = flutterAmp * (1 - progress * 0.35);
             double wave =
-                Math.Sin(progress * Math.PI * 6 + flutterPhase[0] * Math.PI * 2) * 0.5 +
-                Math.Sin(progress * Math.PI * 11 + flutterPhase[1] * Math.PI * 2) * 0.3 +
-                Math.Sin(progress * Math.PI * 18 + flutterPhase[2] * Math.PI * 2) * 0.2;
-            double speedMul = Math.Clamp(baseM + wave * amp, 0.65, 1.45);
+                Math.Sin(progress * Math.PI * 5 + flutterPhase[0] * Math.PI * 2) * 0.6 +
+                Math.Sin(progress * Math.PI * 9 + flutterPhase[1] * Math.PI * 2) * 0.4;
+            double speedMul = Math.Clamp(baseM + wave * amp, 0.78, 1.22);
 
             var segLen = d - prevD;
             tAcc += segLen / (baseSpeed * speedMul) * factor;
@@ -167,10 +162,9 @@ public static class RaceSimulationEngine
         foreach (var entry in entries.OrderBy(e => e.Id))
         {
             var horseRng = new SplitMix64(raceSeed ^ LeftRotate(SeedFromGuid(entry.HorseId), 13));
-            // base multiplier riêng: 0.92..1.08
-            var m1 = Math.Round(0.92 + horseRng.NextDouble() * 0.16, 6);
-            var m2 = Math.Round(0.88 + horseRng.NextDouble() * 0.22, 6);
-            var m3 = Math.Round(0.90 + horseRng.NextDouble() * 0.18, 6);
+            var m1 = Math.Round(0.94 + horseRng.NextDouble() * 0.10, 6);
+            var m2 = Math.Round(0.92 + horseRng.NextDouble() * 0.12, 6);
+            var m3 = Math.Round(0.94 + horseRng.NextDouble() * 0.10, 6);
             var finishSec = CalculateFinishSeconds(total, baseSpeed, m1, m2, m3);
             finishSecById[entry.HorseId] = finishSec;
 
@@ -206,11 +200,10 @@ public static class RaceSimulationEngine
             var factor = factorById.GetValueOrDefault(h.HorseId, 1.0);
             var (m1, m2, m3) = (h.SectionMultipliers[0], h.SectionMultipliers[1], h.SectionMultipliers[2]);
             var hr = new SplitMix64(raceSeed ^ LeftRotate(SeedFromGuid(h.HorseId), 7) ^ 0x9E3779B97F4A7C15UL);
-            double flutterAmp = 0.14 + hr.NextDouble() * 0.08; // 0.14..0.22
-            double[] phase = new[] { hr.NextDouble(), hr.NextDouble(), hr.NextDouble() };
-            h.FinishTimeMs = 0; // sẽ set sau khi generate checkpoints (flutter làm finish thay đổi)
+            double flutterAmp = 0.07 + hr.NextDouble() * 0.04;
+            double[] phase = new[] { hr.NextDouble(), hr.NextDouble() };
+            h.FinishTimeMs = 0;
             h.Checkpoints = GenerateCheckpointsFlutter(total, baseSpeed, m1, m2, m3, flutterAmp, phase, factor);
-            // finish là checkpoint cuối
             h.FinishTimeMs = (long)h.Checkpoints[^1].T;
         }
 

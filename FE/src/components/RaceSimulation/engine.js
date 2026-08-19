@@ -154,18 +154,16 @@ export function createDemoScript(baseScript) {
   const baseSpeed = total / (58 + rnd() * 14);
 
   const horses = baseScript.horses.map((h) => ({ ...h, checkpoints: [...h.checkpoints] }));
-  // assign random per-horse multipliers
   const horseData = horses.map((h) => {
-    const m1 = 0.92 + rnd() * 0.16;
-    const m2 = 0.88 + rnd() * 0.22;
-    const m3 = 0.90 + rnd() * 0.18;
-    const flutterAmp = 0.15 + rnd() * 0.10;
-    const phase = [rnd(), rnd(), rnd()];
+    const m1 = 0.94 + rnd() * 0.10;
+    const m2 = 0.92 + rnd() * 0.12;
+    const m3 = 0.94 + rnd() * 0.10;
+    const flutterAmp = 0.07 + rnd() * 0.04; // 0.07–0.11 trước là 0.15–0.25
+    const phase = [rnd(), rnd()];
     return { h, m1, m2, m3, flutterAmp, phase };
   });
 
-  // generate flutter checkpoints — giống BE nhưng random mỗi lần
-  const count = 120;
+  const count = 180;
   for (const { h, m1, m2, m3, flutterAmp, phase } of horseData) {
     h.sectionMultipliers = [Number(m1.toFixed(6)), Number(m2.toFixed(6)), Number(m3.toFixed(6))];
     const pts = [];
@@ -180,31 +178,40 @@ export function createDemoScript(baseScript) {
       if (progress < 0.35) baseM = m1;
       else if (progress < 0.70) baseM = m2;
       else baseM = m3;
-      const amp = flutterAmp * (1 - progress * 0.25);
+      // mượt: chỉ 2 sóng chậm, biên độ giảm dần, không còn sóng 18π
+      const amp = flutterAmp * (1 - progress * 0.35);
       const wave =
-        Math.sin(progress * Math.PI * 6 + phase[0] * Math.PI * 2) * 0.5 +
-        Math.sin(progress * Math.PI * 11 + phase[1] * Math.PI * 2) * 0.3 +
-        Math.sin(progress * Math.PI * 18 + phase[2] * Math.PI * 2) * 0.2;
-      const speedMul = Math.max(0.62, Math.min(1.48, baseM + wave * amp));
+        Math.sin(progress * Math.PI * 5 + phase[0] * Math.PI * 2) * 0.6 +
+        Math.sin(progress * Math.PI * 9 + phase[1] * Math.PI * 2) * 0.4;
+      const speedMul = Math.max(0.78, Math.min(1.22, baseM + wave * amp));
       const segLen = d - prevD;
       tAcc += segLen / (baseSpeed * speedMul);
       pts.push({ d, t: Number((tAcc * 1000).toFixed(1)) });
       prevD = d;
     }
-    // random winner bias: pick one horse to compress by 0.96–0.99 so it wins but not always
     h.checkpoints = pts;
     h.finishTimeMs = pts[pts.length - 1].t;
   }
 
-  // Ép 1 ngựa thắng random — nén timeline để chắc chắn về nhất (tạo kịch tính: bứt tốc cuối)
+  // Ép 1 ngựa thắng random — chỉ bứt tốc 15% cuối, không nén toàn bộ timeline (tránh giật)
   const winnerIdx = Math.floor(rnd() * horses.length);
   const winner = horses[winnerIdx];
-  const othersMin = Math.min(...horses.filter((_, i) => i !== winnerIdx).map((x) => x.finishTimeMs));
-  const target = Math.max(1000, othersMin - (180 + rnd() * 220)); // thắng 0.18–0.40s
-  const factor = Math.max(0.85, Math.min(0.985, target / winner.finishTimeMs));
-  if (factor < 1) {
-    winner.checkpoints = winner.checkpoints.map((p) => ({ d: p.d, t: Number((p.t * factor).toFixed(1)) }));
-    winner.finishTimeMs = winner.checkpoints[winner.checkpoints.length - 1].t;
+  const cutD = total * 0.85;
+  const winnerCutIdx = winner.checkpoints.findIndex((p) => p.d >= cutD);
+  if (winnerCutIdx > 0) {
+    const othersMin = Math.min(...horses.filter((_, i) => i !== winnerIdx).map((x) => x.finishTimeMs));
+    const target = Math.max(1000, othersMin - (180 + rnd() * 220));
+    const needSave = winner.finishTimeMs - target;
+    if (needSave > 0) {
+      const tailDur = winner.finishTimeMs - winner.checkpoints[winnerCutIdx].t;
+      const tailFactor = Math.max(0.72, (tailDur - needSave) / Math.max(1, tailDur));
+      winner.checkpoints = winner.checkpoints.map((p, i) => {
+        if (i <= winnerCutIdx) return p;
+        const t0 = winner.checkpoints[winnerCutIdx].t;
+        return { d: p.d, t: Number((t0 + (p.t - t0) * tailFactor).toFixed(1)) };
+      });
+      winner.finishTimeMs = winner.checkpoints[winner.checkpoints.length - 1].t;
+    }
   }
 
   // shuffle a bit: re-derive finishOrder after compression
