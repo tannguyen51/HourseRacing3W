@@ -3,7 +3,7 @@ import { getRaces } from "../../services/spectatorApi";
 import { getRaceSimulation } from "../../services/simulationApi";
 import * as raceHub from "../../services/raceHub";
 import RaceTrack from "../../components/RaceSimulation/RaceTrack";
-import { formatCountdown, getRunnerColor, validateScript } from "../../components/RaceSimulation/engine";
+import { createDemoScript, formatCountdown, getRunnerColor, validateScript } from "../../components/RaceSimulation/engine";
 import "./RaceSimulationPage.css";
 
 const PHASES = {
@@ -30,6 +30,7 @@ export default function RaceSimulationPage() {
   const [races, setRaces] = useState([]);
   const [selectedId, setSelectedId] = useState("");
   const [plan, setPlan] = useState(null);
+  const [basePlan, setBasePlan] = useState(null); // gốc từ BE — dùng để random lại demo
   const [validation, setValidation] = useState([]);
   const [planError, setPlanError] = useState("");
   const [ranking, setRanking] = useState([]);
@@ -61,9 +62,9 @@ export default function RaceSimulationPage() {
     if (!raceId) return;
     try {
       const value = await getRaceSimulation(raceId);
-      // compute clock skew from server timestamp
       const serverNow = Number(value?.serverNowEpoch ?? 0);
       if (serverNow > 0) setClockSkew(serverNow - Date.now());
+      setBasePlan(value);
       setPlan(value);
       setValidation(validateScript(value));
       setPlanError("");
@@ -71,6 +72,7 @@ export default function RaceSimulationPage() {
     } catch (error) {
       setPlanError(error.message || "Không thể tải dữ liệu mô phỏng cuộc đua.");
       setPlan(null);
+      setBasePlan(null);
     }
   };
   useEffect(() => {
@@ -159,8 +161,11 @@ export default function RaceSimulationPage() {
   };
 
   const handleDemoStart = () => {
-    if (!plan || validation.length) return;
-    // chạy ngay — 1.5s countdown để thấy ngựa ở cổng
+    const src = basePlan ?? plan;
+    if (!src || validation.length) return;
+    const demo = createDemoScript(src);
+    setPlan(demo);
+    setValidation(validateScript(demo));
     const startAt = Date.now() + clockSkew + 1500;
     setDemoEpoch(startAt);
     setRanking([]);
@@ -168,6 +173,10 @@ export default function RaceSimulationPage() {
   };
 
   const handleDemoReset = () => {
+    if (basePlan) {
+      setPlan(basePlan);
+      setValidation(validateScript(basePlan));
+    }
     setDemoEpoch(0);
     setRanking([]);
     setWinner(null);

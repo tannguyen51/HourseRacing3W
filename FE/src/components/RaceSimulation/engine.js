@@ -4,17 +4,13 @@
 
 export const MAX_LANES = 8;
 
-// Màu nhận diện thi đấu theo làn. Không dùng màu lông ngựa vì nhiều ngựa có thể
-// cùng màu; palette này bảo đảm 8 runner trên sân luôn dễ phân biệt.
+// Vạch xuất phát/về đích ở hướng 9h (trái) — đồng bộ với BE RaceSimulationEngine.StartAngle
+export const START_ANGLE = Math.PI;
+
+// Màu nhận diện thi đấu theo làn.
 export const RUNNER_COLORS = [
-  "#ef4444", // đỏ
-  "#3b82f6", // xanh dương
-  "#22c55e", // xanh lá
-  "#f59e0b", // vàng cam
-  "#a855f7", // tím
-  "#06b6d4", // xanh cyan
-  "#ec4899", // hồng
-  "#84cc16", // xanh chanh
+  "#ef4444", "#3b82f6", "#22c55e", "#f59e0b",
+  "#a855f7", "#06b6d4", "#ec4899", "#84cc16",
 ];
 
 export function getRunnerColor(horse, fallbackIndex = 0) {
@@ -26,15 +22,20 @@ export function getRunnerColor(horse, fallbackIndex = 0) {
 }
 
 // ── Hình học oval (ellipse) ──
-// theta = 2π * u (u∈[0,1), một vòng). Chiều chạy ngược kim đồng hồ trên màn hình.
+// theta tăng → chạy clockwise trên màn hình (y hướng xuống). START_ANGLE = 9h.
 export function ovalPose(cx, cy, rx, ry, theta) {
   const x = cx + rx * Math.cos(theta);
-  const y = cy + ry * Math.sin(theta); // y hướng xuống
-  // đạo hàm theo theta → hướng tiếp tuyến
+  const y = cy + ry * Math.sin(theta);
   const dx = -rx * Math.sin(theta);
   const dy = ry * Math.cos(theta);
   const heading = Math.atan2(dy, dx);
   return { x, y, heading };
+}
+
+// u ∈ [0,1): quãng đường → góc trên oval, xuất phát 9h, chạy clockwise
+export function poseForProgress(cx, cy, rx, ry, u) {
+  const theta = START_ANGLE - 2 * Math.PI * u;
+  return ovalPose(cx, cy, rx, ry, theta);
 }
 
 export function laneRadii(baseRx, baseRy, lane) {
@@ -51,7 +52,6 @@ export function interpolateDistance(checkpoints, elapsedMs) {
   const last = checkpoints[checkpoints.length - 1];
   if (t <= first.t) return first.d;
   if (t >= last.t) return last.d;
-  // binary search t
   let lo = 0;
   let hi = checkpoints.length - 1;
   while (lo < hi) {
@@ -128,4 +128,99 @@ export function formatCountdown(ms) {
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+// ── Demo: randomize tốc độ + người thắng (chỉ client, không ảnh hưởng BE) ──
+// Mỗi lần bấm Demo → kết quả khác, dẫn đầu thay đổi liên tục do flutter.
+function mulberry32(seed) {
+  return function () {
+    let t = (seed += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export function createDemoScript(baseScript) {
+  if (!baseScript || !Array.isArray(baseScript.horses) || baseScript.horses.length === 0) return baseScript;
+  const seed = Math.floor(Math.random() * 0xffffffff);
+  const rnd = mulberry32(seed);
+  const total = Number(baseScript.trackLength ?? 0);
+  const oneLap = Number(baseScript.oneLapLength ?? total);
+  const laps = Math.max(1, Number(baseScript.laps ?? 1));
+
+  // random base speed 58–72s equivalent
+  const baseSpeed = total / (58 + rnd() * 14);
+
+  const horses = baseScript.horses.map((h) => ({ ...h, checkpoints: [...h.checkpoints] }));
+  // assign random per-horse multipliers
+  const horseData = horses.map((h) => {
+    const m1 = 0.92 + rnd() * 0.16;
+    const m2 = 0.88 + rnd() * 0.22;
+    const m3 = 0.90 + rnd() * 0.18;
+    const flutterAmp = 0.15 + rnd() * 0.10;
+    const phase = [rnd(), rnd(), rnd()];
+    return { h, m1, m2, m3, flutterAmp, phase };
+  });
+
+  // generate flutter checkpoints — giống BE nhưng random mỗi lần
+  const count = 120;
+  for (const { h, m1, m2, m3, flutterAmp, phase } of horseData) {
+    h.sectionMultipliers = [Number(m1.toFixed(6)), Number(m2.toFixed(6)), Number(m3.toFixed(6))];
+    const pts = [];
+    let tAcc = 0;
+    let prevD = 0;
+    pts.push({ d: 0, t: 0 });
+    for (let k = 1; k <= count; k++) {
+      const d = Number((total * k / count).toFixed(3));
+      const midD = (prevD + d) * 0.5;
+      const progress = midD / total;
+      let baseM;
+      if (progress < 0.35) baseM = m1;
+      else if (progress < 0.70) baseM = m2;
+      else baseM = m3;
+      const amp = flutterAmp * (1 - progress * 0.25);
+      const wave =
+        Math.sin(progress * Math.PI * 6 + phase[0] * Math.PI * 2) * 0.5 +
+        Math.sin(progress * Math.PI * 11 + phase[1] * Math.PI * 2) * 0.3 +
+        Math.sin(progress * Math.PI * 18 + phase[2] * Math.PI * 2) * 0.2;
+      const speedMul = Math.max(0.62, Math.min(1.48, baseM + wave * amp));
+      const segLen = d - prevD;
+      tAcc += segLen / (baseSpeed * speedMul);
+      pts.push({ d, t: Number((tAcc * 1000).toFixed(1)) });
+      prevD = d;
+    }
+    // random winner bias: pick one horse to compress by 0.96–0.99 so it wins but not always
+    h.checkpoints = pts;
+    h.finishTimeMs = pts[pts.length - 1].t;
+  }
+
+  // Ép 1 ngựa thắng random — nén timeline để chắc chắn về nhất (tạo kịch tính: bứt tốc cuối)
+  const winnerIdx = Math.floor(rnd() * horses.length);
+  const winner = horses[winnerIdx];
+  const othersMin = Math.min(...horses.filter((_, i) => i !== winnerIdx).map((x) => x.finishTimeMs));
+  const target = Math.max(1000, othersMin - (180 + rnd() * 220)); // thắng 0.18–0.40s
+  const factor = Math.max(0.85, Math.min(0.985, target / winner.finishTimeMs));
+  if (factor < 1) {
+    winner.checkpoints = winner.checkpoints.map((p) => ({ d: p.d, t: Number((p.t * factor).toFixed(1)) }));
+    winner.finishTimeMs = winner.checkpoints[winner.checkpoints.length - 1].t;
+  }
+
+  // shuffle a bit: re-derive finishOrder after compression
+  const finishOrder = [...horses].sort((a, b) => a.finishTimeMs - b.finishTimeMs).map((h) => h.horseId);
+  // reassign lanes by finishOrder (optional — keep visual stable? assign by finish to match podium)
+  const laneById = new Map(finishOrder.map((id, i) => [String(id), i % 8 + 1]));
+  for (const h of horses) h.lane = laneById.get(String(h.horseId)) ?? h.lane;
+
+  return {
+    ...baseScript,
+    horses,
+    finishOrder,
+    durationMs: Math.max(...horses.map((h) => h.finishTimeMs)),
+    oneLapLength: oneLap,
+    trackLength: total,
+    laps,
+    baseSpeed: Number(baseSpeed.toFixed(4)),
+    seed: `demo-${seed.toString(16)}`,
+  };
 }

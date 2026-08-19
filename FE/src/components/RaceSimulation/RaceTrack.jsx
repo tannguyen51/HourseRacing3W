@@ -3,8 +3,8 @@ import {
   interpolateDistance,
   getRunnerColor,
   laneRadii,
-  ovalPose,
-  progressState,
+  poseForProgress,
+  START_ANGLE,
 } from "./engine";
 
 const W = 1100;
@@ -89,9 +89,10 @@ function HorseWithJockey({ horse, runnerIndex, gallop }) {
 function FireworksOverlay({ winner, onClose }) {
   const bursts = useMemo(() => {
     const colors = ["#ffd700", "#ff4d6a", "#4dc9ff", "#7cff6b", "#ff8a2e", "#c084fc"];
+    const fx = CX - BASE_RX; // 9h finish line x
     return Array.from({ length: 5 }, (_, i) => ({
-      x: CX + BASE_RX + (i % 2 === 0 ? 38 : -28) + (Math.random() * 16 - 8),
-      y: CY + (i - 2) * 28 + (Math.random() * 10 - 5),
+      x: fx + (i % 2 === 0 ? 34 : -22) + (Math.random() * 14 - 7),
+      y: CY + (i - 2) * 26 + (Math.random() * 10 - 5),
       color: colors[i % colors.length],
       delay: i * 180,
     }));
@@ -280,12 +281,9 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
     finishedSentRef.current = false;
     fireworksSentRef.current = false;
     setFireworksWinner(null);
-    const gatePose = (lane) => {
-      const { rx, ry } = laneRadii(BASE_RX, BASE_RY, lane);
-      return ovalPose(CX, CY, rx, ry, 0);
-    };
     for (const h of horses) {
-      const pose = gatePose(h.lane);
+      const { rx, ry } = laneRadii(BASE_RX, BASE_RY, h.lane);
+      const pose = poseForProgress(CX, CY, rx, ry, 0);
       const el = markerRefs.current[h.horseId];
       if (el) el.style.transform = `translate3d(${pose.x}px, ${pose.y}px, 0) rotate(${(pose.heading * 180) / Math.PI}deg)`;
     }
@@ -321,10 +319,18 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
         const el = markerRefs.current[h.horseId];
         if (!el) continue;
         const d = elapsed >= 0 ? interpolateDistance(h.checkpoints, elapsed) : 0;
-        const st = progressState(d, oneLap, laps);
+        const totalLen = Number(script?.trackLength ?? 0);
+        const oneLap = Number(script?.oneLapLength ?? totalLen);
+        const laps = Math.max(1, Number(script?.laps ?? 1));
+        const u = totalLen > 0 ? Math.max(0, Math.min(d, totalLen)) / (oneLap || 1) % 1 : 0;
+        // use poseForProgress so 9h start is honored; handle lap wrap
+        const lapProgress = totalLen > 0 ? (d % oneLap) / oneLap : 0;
         const { rx, ry } = laneRadii(BASE_RX, BASE_RY, h.lane);
-        const pose = ovalPose(CX, CY, rx, ry, Math.PI * 2 * st.u);
-        el.style.transform = `translate3d(${pose.x.toFixed(1)}px, ${pose.y.toFixed(1)}px, 0) rotate(${((pose.heading * 180) / Math.PI).toFixed(1)}deg)`;
+        const pose = poseForProgress(CX, CY, rx, ry, lapProgress);
+        // keep finished horses at finish line
+        const isFinished = totalLen > 0 && d >= totalLen;
+        const finalPose = isFinished ? poseForProgress(CX, CY, rx, ry, 0) : pose;
+        el.style.transform = `translate3d(${finalPose.x.toFixed(1)}px, ${finalPose.y.toFixed(1)}px, 0) rotate(${((finalPose.heading * 180) / Math.PI).toFixed(1)}deg)`;
       }
 
       // fireworks when winner crosses finish
@@ -337,11 +343,15 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
         const ranking = horses
           .map((h) => {
             const d = interpolateDistance(h.checkpoints, elapsed);
-            const st = progressState(d, oneLap, laps);
+            const totalLen = Number(script?.trackLength ?? 0);
+            const oneLapLocal = Number(script?.oneLapLength ?? totalLen);
+            const lapsLocal = Math.max(1, Number(script?.laps ?? 1));
+            const lap = totalLen > 0 ? Math.min(lapsLocal, Math.floor(Math.max(0, Math.min(d, totalLen)) / oneLapLocal) + 1) : 1;
+            const finished = totalLen > 0 && d >= totalLen;
             return {
               horseId: h.horseId, name: h.name, color: h.color,
               lane: h.lane, gateNumber: h.gateNumber, odds: h.odds, jockeyName: h.jockeyName,
-              distance: d, lap: st.lap, finished: st.finished, finishTimeMs: h.finishTimeMs,
+              distance: d, lap, finished, finishTimeMs: h.finishTimeMs,
             };
           })
           .sort((a, b) => b.distance - a.distance || a.finishTimeMs - b.finishTimeMs);
@@ -449,13 +459,13 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
               </g>
             );
           })}
-          {/* finish gantry — vertical only, no top numbers */}
+          {/* finish gantry — vertical at 9h (left) */}
           <g>
-            <rect x={CX + BASE_RX - 2} y={CY - 36} width="3.5" height={72} rx="1.6" fill="#e8e8e8" stroke="#9a9a9a" strokeWidth="0.6" />
-            <rect x={CX + BASE_RX - 18} y={CY - 40} width="36" height="7.5" rx="1.5" fill="#1a1a1a" stroke="#e8d9a0" strokeWidth="0.7" />
-            <text x={CX + BASE_RX} y={CY - 34.8} textAnchor="middle" fontSize="4.4" fontWeight="900" fill="#f0d48a" letterSpacing="0.6">FINISH</text>
+            <rect x={CX - BASE_RX - 1.5} y={CY - 36} width="3.5" height={72} rx="1.6" fill="#e8e8e8" stroke="#9a9a9a" strokeWidth="0.6" />
+            <rect x={CX - BASE_RX - 18} y={CY - 40} width="36" height="7.5" rx="1.5" fill="#1a1a1a" stroke="#e8d9a0" strokeWidth="0.7" />
+            <text x={CX - BASE_RX} y={CY - 34.8} textAnchor="middle" fontSize="4.4" fontWeight="900" fill="#f0d48a" letterSpacing="0.6">FINISH</text>
             {Array.from({ length: 15 }, (_, i) => (
-              <rect key={`chk-${i}`} x={CX + BASE_RX - 1.2} y={CY - 28 + i * 3.9} width="2.4" height="3.9" fill={i % 2 === 0 ? "#111" : "#fff"} opacity="0.95" />
+              <rect key={`chk-${i}`} x={CX - BASE_RX - 1.2} y={CY - 28 + i * 3.9} width="2.4" height="3.9" fill={i % 2 === 0 ? "#111" : "#fff"} opacity="0.95" />
             ))}
           </g>
           <text x={CX} y={CY - 6} textAnchor="middle" fontFamily="Georgia, serif" fontWeight="800" fontSize="18" fill="rgba(255,255,255,0.92)">{script?.raceName ?? "RACE"}</text>
@@ -467,13 +477,13 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
         <svg width={W} height={H} style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
           {horses.map((h) => {
             const { rx, ry } = laneRadii(BASE_RX, BASE_RY, h.lane);
-            const p = ovalPose(CX, CY, rx, ry, 0);
+            const p = poseForProgress(CX, CY, rx, ry, 0);
             const gateColor = getRunnerColor(h, h.lane - 1);
             return (
               <g key={`gate-${h.horseId}`} opacity="0.92">
-                <rect x={p.x - 18} y={p.y - 14} width="20" height="22" rx="1.5" fill="#2b2b2b" stroke={gateColor} strokeWidth="1.2" />
-                <rect x={p.x - 16} y={p.y - 11} width="16" height="16" rx="1" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="0.7" />
-                <text x={p.x - 8} y={p.y - 0.5} textAnchor="middle" fontSize="7" fontWeight="900" fill="#fff">{h.gateNumber ?? h.lane}</text>
+                <rect x={p.x - 10} y={p.y - 14} width="20" height="22" rx="1.5" fill="#2b2b2b" stroke={gateColor} strokeWidth="1.2" />
+                <rect x={p.x - 8} y={p.y - 11} width="16" height="16" rx="1" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="0.7" />
+                <text x={p.x} y={p.y - 0.5} textAnchor="middle" fontSize="7" fontWeight="900" fill="#fff">{h.gateNumber ?? h.lane}</text>
               </g>
             );
           })}

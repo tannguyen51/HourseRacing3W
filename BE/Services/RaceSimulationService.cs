@@ -13,7 +13,7 @@ namespace HorseRacing.Services;
 /// <summary>
 /// Sinh "race_script" cho cuộc đua — backend là nguồn duy nhất quyết định kết quả.
 /// Script ổn định (được persist) nên mọi spectator sau refresh/reconnect đều thấy
-/// cùng một cuộc đua. Mô hình tốc độ gồm 3 đoạn theo quãng đường.
+/// cùng một cuộc đua.
 /// </summary>
 public class RaceSimulationService : IRaceSimulationService
 {
@@ -46,7 +46,6 @@ public class RaceSimulationService : IRaceSimulationService
 
             var fingerprint = RaceSimulationEngine.ComputeFingerprint(race, entries);
 
-            // dùng script đã persist nếu cấu hình (laps/ngựa/odds) chưa đổi
             RaceSimulationScriptDto? script = null;
             if (!string.IsNullOrEmpty(race.SimulationScriptJson))
             {
@@ -80,30 +79,24 @@ public class RaceSimulationService : IRaceSimulationService
     }
 }
 
-/// <summary>Thuật toán pace 3 đoạn — thuần, deterministic, unit-test được.</summary>
+/// <summary>
+/// Thuật toán pace: tốc độ dao động theo thời gian (flutter) để dẫn đầu thay đổi liên tục.
+/// Mỗi ngựa có baseSpeed riêng + noise riêng; overall finish order vẫn deterministic theo seed,
+/// nhưng thứ hạng giữa chừng biến động mạnh nên người xem không đoán sớm được.
+/// Vạch xuất phát/về đích ở hướng 9h (Math.PI) — xem RaceTrack.jsx START_ANGLE.
+/// </summary>
 public static class RaceSimulationEngine
 {
-    public const int Version = 1;
-    public const int CheckpointCount = 60;
-    public const double Section1End = 0.35;
-    public const double Section2End = 0.70;
-
-    /// <summary>Đoạn 1 (0–0.35): tốc độ theo win probability → multiplier 0.90..1.10.</summary>
-    public static double ProbabilityMultiplier(double winProbability)
-        => Math.Round(0.90 + 0.20 * Math.Clamp(winProbability, 0, 1), 6);
-
-    /// <summary>Đoạn 2 (0.35–0.70): ngẫu nhiên có seed → multiplier 0.80..1.20.</summary>
-    public static double RandomMultiplier(SplitMix64 rng)
-        => Math.Round(0.80 + rng.NextDouble() * 0.40, 6);
-
-    /// <summary>Đoạn 3 (0.70–1.00): 50% mức cố định + 50% theo probability.</summary>
-    public static double FinishPaceMultiplier(double m1)
-        => Math.Round(0.5 * 1.0 + 0.5 * m1, 6);
+    public const int Version = 2;
+    public const int CheckpointCount = 120;
+    /// <summary>Góc xuất phát 9h = π (trái). RaceTrack.jsx dùng cùng hằng START_ANGLE.</summary>
+    public const double StartAngle = Math.PI;
 
     public static double TimeAtDistanceSeconds(double d, double total, double baseSpeed, double m1, double m2, double m3)
     {
-        var s1 = total * Section1End;
-        var s2 = total * (Section2End - Section1End);
+        const double s1End = 0.35, s2End = 0.70;
+        var s1 = total * s1End;
+        var s2 = total * (s2End - s1End);
         if (d <= s1) return d / (baseSpeed * m1);
         var t = s1 / (baseSpeed * m1);
         d -= s1;
@@ -116,15 +109,44 @@ public static class RaceSimulationEngine
     public static double CalculateFinishSeconds(double total, double baseSpeed, double m1, double m2, double m3)
         => TimeAtDistanceSeconds(total, total, baseSpeed, m1, m2, m3);
 
-    public static List<RaceSimulationCheckpointDto> GenerateCheckpoints(
-        double total, double baseSpeed, double m1, double m2, double m3, double factor = 1.0, int count = CheckpointCount)
+    /// <summary>Tạo checkpoints với flutter: mỗi ngựa có tốc độ biến thiên theo progress.</summary>
+    public static List<RaceSimulationCheckpointDto> GenerateCheckpointsFlutter(
+        double total, double baseSpeed,
+        double m1, double m2, double m3,
+        double flutterAmp, double[] flutterPhase, // per-horse random
+        double factor = 1.0, int count = CheckpointCount)
     {
+        // Build time by integrating 1/speed; flutter modulates speed per segment
+        // flutterPhase[0..2] in [0,1) — offset trong chu kỳ sin
         var pts = new List<RaceSimulationCheckpointDto>(count + 1);
-        for (var k = 0; k <= count; k++)
+        double tAcc = 0;
+        double prevD = 0;
+        pts.Add(new RaceSimulationCheckpointDto { D = 0, T = 0 });
+
+        for (var k = 1; k <= count; k++)
         {
             var d = Math.Round(total * k / count, 3);
-            var tMs = Math.Round(TimeAtDistanceSeconds(d, total, baseSpeed, m1, m2, m3) * factor * 1000.0, 1);
-            pts.Add(new RaceSimulationCheckpointDto { D = d, T = tMs });
+            var midD = (prevD + d) * 0.5;
+            var progress = midD / total; // 0..1
+
+            // base multiplier theo đoạn
+            double baseM;
+            if (progress < 0.35) baseM = m1;
+            else if (progress < 0.70) baseM = m2;
+            else baseM = m3;
+
+            // flutter: sin wave với tần số khác nhau, biên độ giảm dần về cuối để finish không quá loạn
+            double amp = flutterAmp * (1 - progress * 0.3);
+            double wave =
+                Math.Sin(progress * Math.PI * 6 + flutterPhase[0] * Math.PI * 2) * 0.5 +
+                Math.Sin(progress * Math.PI * 11 + flutterPhase[1] * Math.PI * 2) * 0.3 +
+                Math.Sin(progress * Math.PI * 18 + flutterPhase[2] * Math.PI * 2) * 0.2;
+            double speedMul = Math.Clamp(baseM + wave * amp, 0.65, 1.45);
+
+            var segLen = d - prevD;
+            tAcc += segLen / (baseSpeed * speedMul) * factor;
+            pts.Add(new RaceSimulationCheckpointDto { D = d, T = Math.Round(tAcc * 1000.0, 1) });
+            prevD = d;
         }
         return pts;
     }
@@ -136,26 +158,19 @@ public static class RaceSimulationEngine
         var laps = Math.Max(1, race.Laps);
         var oneLap = Math.Max(10, race.Distance);
         var total = oneLap * laps;
-        var baseSpeed = total / (58 + rng.NextDouble() * 14); // ≈58–72s ở multiplier 1
+        var baseSpeed = total / (58 + rng.NextDouble() * 14); // ~58-72s at mul 1
 
-        // win probability từ tỷ lệ cược: odds thấp hơn → khả năng thắng cao hơn
-        var ordered = entries
-            .Select(e => new { Entry = e, Weight = 1.0 / Math.Max(1.0, (double)e.Odds) })
-            .ToList();
-        var invSum = ordered.Sum(x => x.Weight);
-        var probById = ordered.ToDictionary(x => x.Entry.HorseId, x => x.Weight / invSum);
-
+        // Mỗi ngựa có base speed riêng (dao động ±10%) — không phụ thuộc odds
         var horses = new List<RaceSimulationHorseScriptDto>();
         var finishSecById = new Dictionary<Guid, double>();
         var idx = 0;
-        foreach (var item in ordered)
+        foreach (var entry in entries.OrderBy(e => e.Id))
         {
-            var entry = item.Entry;
             var horseRng = new SplitMix64(raceSeed ^ LeftRotate(SeedFromGuid(entry.HorseId), 13));
-            var prob = probById[entry.HorseId];
-            var m1 = ProbabilityMultiplier(prob);
-            var m2 = RandomMultiplier(horseRng);
-            var m3 = FinishPaceMultiplier(m1);
+            // base multiplier riêng: 0.92..1.08
+            var m1 = Math.Round(0.92 + horseRng.NextDouble() * 0.16, 6);
+            var m2 = Math.Round(0.88 + horseRng.NextDouble() * 0.22, 6);
+            var m3 = Math.Round(0.90 + horseRng.NextDouble() * 0.18, 6);
             var finishSec = CalculateFinishSeconds(total, baseSpeed, m1, m2, m3);
             finishSecById[entry.HorseId] = finishSec;
 
@@ -165,7 +180,7 @@ public static class RaceSimulationEngine
                 Name = entry.Horse?.Name ?? entry.HorseId.ToString(),
                 Color = entry.Horse?.Color,
                 GateNumber = entry.GateNumber ?? idx + 1,
-                WinProbability = prob,
+                WinProbability = 1.0 / entries.Count, // uniform — không tiết lộ odds
                 Seed = Convert.ToHexString(entry.HorseId.ToByteArray()),
                 SectionMultipliers = new[] { m1, m2, m3 },
                 FinishTimeMs = (long)Math.Round(finishSec * 1000),
@@ -176,7 +191,7 @@ public static class RaceSimulationEngine
             idx++;
         }
 
-        // ép ngựa thắng: nén timeline của ngựa đó để chắc chắn về đích sớm nhất
+        // Ép thắng: chỉ khi admin set WinnerOverride — nếu không thì giữ random tự nhiên
         var factorById = new Dictionary<Guid, double>();
         if (race.WinnerOverrideHorseId is { } forcedId && forcedId != Guid.Empty && finishSecById.TryGetValue(forcedId, out var forcedSec))
         {
@@ -185,12 +200,18 @@ public static class RaceSimulationEngine
             factorById[forcedId] = Math.Max(0.05, target / forcedSec);
         }
 
+        // Flutter params per horse — dùng horseRng riêng
         foreach (var h in horses)
         {
             var factor = factorById.GetValueOrDefault(h.HorseId, 1.0);
             var (m1, m2, m3) = (h.SectionMultipliers[0], h.SectionMultipliers[1], h.SectionMultipliers[2]);
-            h.FinishTimeMs = (long)Math.Round(CalculateFinishSeconds(total, baseSpeed, m1, m2, m3) * factor * 1000);
-            h.Checkpoints = GenerateCheckpoints(total, baseSpeed, m1, m2, m3, factor);
+            var hr = new SplitMix64(raceSeed ^ LeftRotate(SeedFromGuid(h.HorseId), 7) ^ 0x9E3779B97F4A7C15UL);
+            double flutterAmp = 0.14 + hr.NextDouble() * 0.08; // 0.14..0.22
+            double[] phase = new[] { hr.NextDouble(), hr.NextDouble(), hr.NextDouble() };
+            h.FinishTimeMs = 0; // sẽ set sau khi generate checkpoints (flutter làm finish thay đổi)
+            h.Checkpoints = GenerateCheckpointsFlutter(total, baseSpeed, m1, m2, m3, flutterAmp, phase, factor);
+            // finish là checkpoint cuối
+            h.FinishTimeMs = (long)h.Checkpoints[^1].T;
         }
 
         var finishOrder = horses.OrderBy(h => h.FinishTimeMs).Select(h => h.HorseId).ToList();
