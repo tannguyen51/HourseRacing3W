@@ -50,6 +50,7 @@ export function SpectatorProfilePage() {
   const [bankForm, setBankForm] = useState({ bankName: "", accountNumber: "", accountHolder: "" });
   const [wdAmount, setWdAmount] = useState("");
   const [wdSelectedAccount, setWdSelectedAccount] = useState("");
+  const [wdSortBy, setWdSortBy] = useState("newest");
 
   /* deposit */
   const [depositAmount, setDepositAmount] = useState("");
@@ -58,6 +59,7 @@ export function SpectatorProfilePage() {
   const [depositHistory, setDepositHistory] = useState([]);
   const [depositHistoryLoading, setDepositHistoryLoading] = useState(false);
   const [showDepositHistory, setShowDepositHistory] = useState(false);
+  const [depositSortBy, setDepositSortBy] = useState("newest");
   const depositSince = useRef(null);
   const pollRef = useRef(null);
 
@@ -581,9 +583,29 @@ export function SpectatorProfilePage() {
 
                 {showDepositHistory && (
                   <div style={{ marginTop: 24, borderTop: "1px solid rgba(143,100,32,0.12)", paddingTop: 20 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
                       <h3 style={{ margin: 0, color: "#172033", fontSize: 16 }}>Lịch sử nạp tiền</h3>
-                      <span style={{ fontSize: 12, color: "#657086" }}>Mới nhất trước</span>
+                      <select
+                        value={depositSortBy}
+                        onChange={(e) => setDepositSortBy(e.target.value)}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 6,
+                          border: "1px solid rgba(143,100,32,0.2)",
+                          background: "#fff",
+                          color: "#34415b",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          fontFamily: "inherit",
+                          transition: "all .15s"
+                        }}
+                      >
+                        <option value="newest">Mới nhất</option>
+                        <option value="oldest">Cũ nhất</option>
+                        <option value="amount-low">Tiền: Thấp → Cao</option>
+                        <option value="amount-high">Tiền: Cao → Thấp</option>
+                      </select>
                     </div>
                   {depositHistoryLoading ? (
                     <p className="muted">Đang tải...</p>
@@ -602,7 +624,25 @@ export function SpectatorProfilePage() {
                         </thead>
                         <tbody>
                           {[...depositHistory]
-                            .sort((a, b) => new Date(b.createdAt ?? b.CreatedAt ?? 0) - new Date(a.createdAt ?? a.CreatedAt ?? 0))
+                            .sort((a, b) => {
+                              const aDate = new Date(a.createdAt ?? a.CreatedAt ?? 0);
+                              const bDate = new Date(b.createdAt ?? b.CreatedAt ?? 0);
+                              const aAmount = Number(a.amount ?? a.Amount ?? 0);
+                              const bAmount = Number(b.amount ?? b.Amount ?? 0);
+
+                              switch (depositSortBy) {
+                                case "newest":
+                                  return bDate - aDate;
+                                case "oldest":
+                                  return aDate - bDate;
+                                case "amount-low":
+                                  return aAmount - bAmount;
+                                case "amount-high":
+                                  return bAmount - aAmount;
+                                default:
+                                  return bDate - aDate;
+                              }
+                            })
                             .map((item) => (
                             <tr key={item.id ?? item.Id}>
                               <td style={{ padding: "10px", borderBottom: "1px solid rgba(143,100,32,0.08)", color: "#34415b" }}>
@@ -764,9 +804,29 @@ export function SpectatorProfilePage() {
                   {/* Lịch sử rút tiền */}
                   {showHistory && (
                     <div className="sp-card">
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
                         <h3 style={{ margin: 0, color: "#172033", fontSize: 16 }}>Lịch sử rút tiền</h3>
-                        <span style={{ fontSize: 12, color: "#657086" }}>Mới nhất trước</span>
+                        <select
+                          value={wdSortBy}
+                          onChange={(e) => setWdSortBy(e.target.value)}
+                          style={{
+                            padding: "6px 12px",
+                            borderRadius: 6,
+                            border: "1px solid rgba(143,100,32,0.2)",
+                            background: "#fff",
+                            color: "#34415b",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                            transition: "all .15s"
+                          }}
+                        >
+                          <option value="newest">Mới nhất</option>
+                          <option value="oldest">Cũ nhất</option>
+                          <option value="amount-low">Tiền: Thấp → Cao</option>
+                          <option value="amount-high">Tiền: Cao → Thấp</option>
+                        </select>
                       </div>
                       {wdHistory.length === 0 ? (
                         <p className="muted" style={{ textAlign: "center", padding: "20px 0" }}>Chưa có yêu cầu rút tiền nào.</p>
@@ -784,7 +844,25 @@ export function SpectatorProfilePage() {
                             </thead>
                             <tbody>
                               {[...wdHistory]
-                                .sort((a, b) => new Date(b.createdAt ?? b.CreatedAt ?? 0) - new Date(a.createdAt ?? a.CreatedAt ?? 0))
+                                .sort((a, b) => {
+                                  const aDate = new Date(a.createdAt ?? a.CreatedAt ?? 0);
+                                  const bDate = new Date(b.createdAt ?? b.CreatedAt ?? 0);
+                                  const aAmount = Number(a.amount ?? a.Amount ?? 0);
+                                  const bAmount = Number(b.amount ?? b.Amount ?? 0);
+
+                                  switch (wdSortBy) {
+                                    case "newest":
+                                      return bDate - aDate;
+                                    case "oldest":
+                                      return aDate - bDate;
+                                    case "amount-low":
+                                      return aAmount - bAmount;
+                                    case "amount-high":
+                                      return bAmount - aAmount;
+                                    default:
+                                      return bDate - aDate;
+                                  }
+                                })
                                 .map((w) => (
                                 <tr key={w.id ?? w.Id}>
                                   <td>{w.createdAt ? new Date(w.createdAt).toLocaleString("vi-VN") : "-"}</td>
