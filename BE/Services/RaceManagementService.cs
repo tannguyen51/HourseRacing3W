@@ -365,9 +365,11 @@ public class RaceManagementService : IRaceManagementService
                 {
                     return ServiceResult<bool>.Fail(400, "Kỵ sĩ chưa cập nhật cân nặng hợp lệ.");
                 }
-                if (!JockeyWeightEligibility.IsEligible(jockey.Weight))
+                if (!JockeyWeightEligibility.IsEligible(jockey.Weight, race.TargetWeight, race.WeightTolerance,
+                    race.MaxBallastWeight, request.EquipmentWeight))
                 {
-                    return ServiceResult<bool>.Fail(400, JockeyWeightEligibility.ErrorMessage(jockey.Weight));
+                    return ServiceResult<bool>.Fail(400, JockeyWeightEligibility.ErrorMessage(jockey.Weight,
+                        race.TargetWeight, race.WeightTolerance, race.MaxBallastWeight, request.EquipmentWeight));
                 }
                 if (request.EquipmentWeight < 0 || request.EquipmentWeight > 20)
                 {

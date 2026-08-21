@@ -125,7 +125,9 @@ public class JockeyService : IJockeyService
             repairedInvitation = true;
             if (invitation.Status == JockeyInvitationStatus.Accepted &&
                 entry.JockeyId != jockey.Id &&
-                JockeyWeightEligibility.IsEligible(jockey.Weight))
+                entry.Race != null &&
+                JockeyWeightEligibility.IsEligible(jockey.Weight, entry.Race.TargetWeight,
+                    entry.Race.WeightTolerance, entry.Race.MaxBallastWeight, entry.EquipmentWeight))
             {
                 entry.JockeyId = jockey.Id;
                 entry.JockeyConfirmed = true;
@@ -221,11 +223,13 @@ public class JockeyService : IJockeyService
                     "Kỵ sĩ này đã có cuộc đua trùng thời gian");
             }
 
-            if (!JockeyWeightEligibility.IsEligible(jockey.Weight))
+                if (!JockeyWeightEligibility.IsEligible(jockey.Weight, entry.Race.TargetWeight,
+                    entry.Race.WeightTolerance, entry.Race.MaxBallastWeight, entry.EquipmentWeight))
             {
                 return ServiceResult<object>.Fail(
                     StatusCodes.Status400BadRequest,
-                    JockeyWeightEligibility.ErrorMessage(jockey.Weight));
+                    JockeyWeightEligibility.ErrorMessage(jockey.Weight, entry.Race.TargetWeight,
+                        entry.Race.WeightTolerance, entry.Race.MaxBallastWeight, entry.EquipmentWeight));
             }
 
             entry.JockeyId = jockey.Id;
