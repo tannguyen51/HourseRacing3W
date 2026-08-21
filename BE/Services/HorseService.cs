@@ -468,11 +468,13 @@ public class HorseService : IHorseService
             : null;
         var assignedJockeyId = acceptedInvitation?.JockeyId ?? registeringJockey?.Id;
         var assignedJockey = acceptedInvitation?.Jockey ?? registeringJockey;
-        if (assignedJockeyId.HasValue && !JockeyWeightEligibility.IsEligible(assignedJockey?.Weight))
+        if (assignedJockeyId.HasValue && !JockeyWeightEligibility.IsEligible(assignedJockey?.Weight,
+            race.TargetWeight, race.WeightTolerance, race.MaxBallastWeight))
         {
             return ServiceResult<object>.Fail(
                 StatusCodes.Status400BadRequest,
-                JockeyWeightEligibility.ErrorMessage(assignedJockey?.Weight));
+                JockeyWeightEligibility.ErrorMessage(assignedJockey?.Weight, race.TargetWeight,
+                    race.WeightTolerance, race.MaxBallastWeight));
         }
         if (assignedJockeyId.HasValue &&
             await _raceEntries.HasJockeyScheduleConflictAsync(assignedJockeyId.Value,

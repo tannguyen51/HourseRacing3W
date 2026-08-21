@@ -58,8 +58,10 @@ public class RaceEntryService : IRaceEntryService
         var selfJockey = acceptedInvitation == null ? await _jockeys.GetByUserIdAsync(userId) : null;
         var jockeyId = acceptedInvitation?.JockeyId ?? selfJockey?.Id;
         var assignedJockey = acceptedInvitation?.Jockey ?? selfJockey;
-        if (jockeyId.HasValue && !JockeyWeightEligibility.IsEligible(assignedJockey?.Weight))
-            return ServiceResult<object>.Fail(400, JockeyWeightEligibility.ErrorMessage(assignedJockey?.Weight));
+        if (jockeyId.HasValue && !JockeyWeightEligibility.IsEligible(assignedJockey?.Weight, race.TargetWeight,
+                race.WeightTolerance, race.MaxBallastWeight))
+            return ServiceResult<object>.Fail(400, JockeyWeightEligibility.ErrorMessage(assignedJockey?.Weight,
+                race.TargetWeight, race.WeightTolerance, race.MaxBallastWeight));
         if (jockeyId.HasValue && await _entries.HasJockeyScheduleConflictAsync(jockeyId.Value, race.ScheduledAt,
                 race.ScheduledEndAt ?? race.ScheduledAt.AddMinutes(30)))
             return ServiceResult<object>.Fail(409, "Kỵ sĩ đã có cuộc đua trùng thời gian");
@@ -78,8 +80,10 @@ public class RaceEntryService : IRaceEntryService
         if (entry == null) return ServiceResult<bool>.Fail(404, "Không tìm thấy đăng ký tham gia");
         if (entry.Race?.Status is not (RaceStatus.RegistrationOpen or RaceStatus.RegistrationClosed))
             return ServiceResult<bool>.Fail(400, "Không thể duyệt entry trong trạng thái hiện tại của cuộc đua");
-        if (entry.JockeyId.HasValue && !JockeyWeightEligibility.IsEligible(entry.Jockey?.Weight))
-            return ServiceResult<bool>.Fail(400, JockeyWeightEligibility.ErrorMessage(entry.Jockey?.Weight));
+        if (entry.JockeyId.HasValue && entry.Race != null && !JockeyWeightEligibility.IsEligible(entry.Jockey?.Weight,
+                entry.Race.TargetWeight, entry.Race.WeightTolerance, entry.Race.MaxBallastWeight, entry.EquipmentWeight))
+            return ServiceResult<bool>.Fail(400, JockeyWeightEligibility.ErrorMessage(entry.Jockey?.Weight,
+                entry.Race.TargetWeight, entry.Race.WeightTolerance, entry.Race.MaxBallastWeight, entry.EquipmentWeight));
         var approvedCount = (await _entries.GetByRaceAsync(entry.RaceId)).Count(e => e.Status == RegistrationStatus.Approved && e.ScratchedAt == null);
         if (approvedCount >= entry.Race.MaxParticipants) return ServiceResult<bool>.Fail(409, "Cuộc đua đã đủ suất được duyệt");
         entry.Status = RegistrationStatus.Approved;
@@ -225,9 +229,11 @@ public class RaceEntryService : IRaceEntryService
                 {
                     reasons.Add("Kỵ sĩ chưa cập nhật cân nặng");
                 }
-                else if (!JockeyWeightEligibility.IsEligible(e.Jockey.Weight))
+                else if (race != null && !JockeyWeightEligibility.IsEligible(e.Jockey.Weight, race.TargetWeight,
+                    race.WeightTolerance, race.MaxBallastWeight, e.EquipmentWeight))
                 {
-                    reasons.Add(JockeyWeightEligibility.ErrorMessage(e.Jockey.Weight));
+                    reasons.Add(JockeyWeightEligibility.ErrorMessage(e.Jockey.Weight, race.TargetWeight,
+                        race.WeightTolerance, race.MaxBallastWeight, e.EquipmentWeight));
                 }
                 else if (race != null)
                 {
