@@ -220,7 +220,7 @@ function FireworksOverlay({ winner, onClose }) {
         }}
       >
         <div style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.18em", color: "#e8c25a" }}>VỀ NHẤT</div>
-        <div style={{ marginTop: 6, font: "800 22px Georgia, serif", color: "#fff", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>
+        <div style={{ marginTop: 6, font: "800 22px 'Spectral', Georgia, serif", color: "#fff", textShadow: "0 1px 8px rgba(0,0,0,0.5)" }}>
           🏆 {winner?.name ?? "—"}
         </div>
         {winner?.jockeyName && (
@@ -489,7 +489,7 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
               <text x={CX - BASE_RX - 2} y={CY - 45} textAnchor="middle" fontSize="6.5" fontWeight="900" fill="#f0d48a" letterSpacing="1.2">FINISH</text>
             </g>
           </g>
-          <text x={CX} y={CY - 6} textAnchor="middle" fontFamily="Georgia, serif" fontWeight="800" fontSize="18" fill="rgba(255,255,255,0.92)">{script?.raceName ?? "RACE"}</text>
+          <text x={CX} y={CY - 6} textAnchor="middle" fontFamily="'Spectral', Georgia, serif" fontWeight="800" fontSize="18" fill="rgba(255,255,255,0.92)">{script?.raceName ?? "RACE"}</text>
           <text x={CX} y={CY + 10} textAnchor="middle" fontSize="7.2" fontWeight="800" letterSpacing="2.2" fill="rgba(255,255,255,0.72)">{laps} VÒNG · {Number(trackLength).toLocaleString("vi-VN")} M · {horses.length} NGỰA</text>
           <circle cx={CX} cy={CY + 34} r="14" fill="rgba(0,0,0,0.18)" stroke="rgba(255,255,255,0.18)" strokeWidth="0.8" />
           <text x={CX} y={CY + 37.5} textAnchor="middle" fontSize="10" fill="#f0d48a">🏇</text>

@@ -2,7 +2,7 @@
 .race-live-hero{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:24px}
 .race-live-eyebrow{display:flex;align-items:center;gap:8px;color:#a16d18;font-size:11px;font-weight:800;letter-spacing:.16em}
 .race-live-eyebrow span{width:8px;height:8px;border-radius:50%;background:#e4a72e;box-shadow:0 0 0 5px #e4a72e22}
-.race-live-hero h1{margin:8px 0 6px;font:700 clamp(28px,3vw,42px)/1.1 Georgia,serif;color:#142019}
+.race-live-hero h1{margin:8px 0 6px;font:700 clamp(28px,3vw,42px)/1.1 "Spectral",Georgia,serif;color:#142019}
 .race-live-hero p{margin:0;color:#718078;font-size:14px;max-width:62ch}
 .race-live-connection{display:flex;align-items:center;gap:8px;padding:10px 14px;border:1px solid #dfe8e2;border-radius:99px;background:#fff;color:#577063;font-size:12px;font-weight:700;box-shadow:0 8px 24px #1a332510}
 .race-live-connection i,.race-phase i{width:8px;height:8px;border-radius:50%;background:#27a36a;box-shadow:0 0 0 4px #27a36a20}
@@ -32,7 +32,7 @@
 .race-broadcast__title{display:flex;align-items:center;min-width:0;gap:13px}
 .race-broadcast__flag{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#e1a83a21;font-size:20px}
 .race-broadcast__title small{color:#d8a845;font-size:9px;font-weight:900;letter-spacing:.2em}
-.race-broadcast__title h2{overflow:hidden;margin:3px 0 0;font:700 18px/1.2 Georgia,serif;text-overflow:ellipsis;white-space:nowrap}
+.race-broadcast__title h2{overflow:hidden;margin:3px 0 0;font:700 18px/1.2 "Spectral",Georgia,serif;text-overflow:ellipsis;white-space:nowrap}
 .race-phase{display:flex;align-items:center;gap:9px;padding:9px 13px;border:1px solid #ffffff24;border-radius:99px;background:#ffffff12;font-size:11px;font-weight:800}
 .race-phase--live i{background:#fb4b4b;box-shadow:0 0 0 4px #fb4b4b26;animation:race-pulse 1.4s infinite}
 .race-phase--warning i{background:#e3a63c}
@@ -46,7 +46,7 @@
 .race-track-canvas{width:100%}
 .race-track-overlay{position:absolute;z-index:10;left:50%;top:50%;display:flex;flex-direction:column;align-items:center;min-width:260px;padding:18px 24px;border:1px solid #f5d39080;border-radius:14px;transform:translate(-50%,-50%);background:#0a1b14ee;box-shadow:0 16px 45px #00000059;color:#fff;backdrop-filter:blur(8px);text-align:center}
 .race-track-overlay span{color:#dcb567;font-size:9px;font-weight:900;letter-spacing:.18em}
-.race-track-overlay strong{margin-top:6px;font:700 26px Georgia,serif}
+.race-track-overlay strong{margin-top:6px;font:700 26px "Spectral",Georgia,serif}
 .race-track-overlay small{display:block;margin-top:6px;color:#a8c0b2;font-size:11px;line-height:1.4}
 .race-track-overlay--muted strong{font-size:18px}
 .race-track-overlay--gold{border-color:#e8c25a;background:linear-gradient(180deg,#1a3324ee,#0f2418ee)}
