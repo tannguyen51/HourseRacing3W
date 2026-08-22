@@ -98,7 +98,7 @@ function SpectatorPredictionFormPage() {
         const b = d?.data ?? d;
         setWalletBalance(b?.balance ?? b?.Balance ?? 0);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
@@ -276,8 +276,8 @@ function SpectatorPredictionFormPage() {
         // Only show races that can be bet on: Scheduled only
         const status = (race?.status ?? race?.Status ?? "").toLowerCase().trim();
         if (status === "finished" || status === "cancelled" || status === "inprogress" ||
-            status === "awaitingresult" || status === "resultpendingapproval" ||
-            status === "resultapproved") return false;
+          status === "awaitingresult" || status === "resultpendingapproval" ||
+          status === "resultapproved") return false;
         return true;
       })
       .map((race) => {

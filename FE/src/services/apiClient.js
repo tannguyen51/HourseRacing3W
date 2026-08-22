@@ -125,7 +125,15 @@ export async function request(path, options = {}) {
   let data;
 
   if (contentType && contentType.includes("application/json")) {
-    data = await response.json();
+    const text = await response.text();
+    data = JSON.parse(text, (key, value) => {
+      // Tự động thêm 'Z' vào các chuỗi ngày giờ trả về từ backend (nếu bị thiếu timezone)
+      // để đảm bảo trình duyệt hiểu đây là giờ UTC, tránh lỗi lệch 7 tiếng.
+      if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(value)) {
+        return value + "Z";
+      }
+      return value;
+    });
   } else {
     const text = await response.text();
     try { data = JSON.parse(text); } catch { data = text; }
