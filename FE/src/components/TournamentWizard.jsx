@@ -4,6 +4,11 @@ import { createTournament } from "../services/adminApi";
 
 const DRAFT_KEY = "tournament_form_draft";
 
+const toApiLocalDateTime = (value) => {
+  if (!value) return null;
+  return value.length === 16 ? `${value}:00` : value;
+};
+
 function TournamentWizard({ onClose, onSuccess }) {
   const [step, setStep] = useState(1);
   const [uploading, setUploading] = useState(false);
@@ -128,11 +133,9 @@ function TournamentWizard({ onClose, onSuccess }) {
         description: form.description,
         category: form.category,
         imageUrl: form.imageUrl,
-        startDate: new Date(form.startDate).toISOString(),
-        endDate: new Date(form.endDate).toISOString(),
-        registrationDeadline: form.registrationDeadline
-          ? new Date(form.registrationDeadline).toISOString()
-          : null,
+        startDate: toApiLocalDateTime(form.startDate),
+        endDate: toApiLocalDateTime(form.endDate),
+        registrationDeadline: toApiLocalDateTime(form.registrationDeadline),
         prizePool: form.prizePool,
       };
       await createTournament(payload);
@@ -465,3 +468,4 @@ function TournamentWizard({ onClose, onSuccess }) {
 }
 
 export default TournamentWizard;
+

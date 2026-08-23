@@ -125,6 +125,10 @@ const inputDate = (days = 0) => {
   return date.toISOString().slice(0, 16);
 };
 
+const toApiLocalDateTime = (value) => {
+  if (!value) return null;
+  return value.length === 16 ? `${value}:00` : value;
+};
 const isGuid = (value) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
     value,
@@ -825,7 +829,7 @@ function TournamentManagement() {
     event.preventDefault();
     try {
       if (trackSlots.some(x => !x.trackId || !x.availableFrom || !x.availableTo)) throw new Error("Vui lòng chọn sân đấu và đầy đủ ngày giờ sử dụng.");
-      const payload = { ...form, tracks: trackSlots.map(x => ({ trackId: x.trackId, availableFrom: new Date(x.availableFrom).toISOString(), availableTo: new Date(x.availableTo).toISOString() })), startDate: new Date(form.startDate).toISOString(), endDate: new Date(form.endDate).toISOString(), registrationDeadline: form.registrationDeadline ? new Date(form.registrationDeadline).toISOString() : null, prizePool: Number(form.prizePool) };
+      const payload = { ...form, tracks: trackSlots.map(x => ({ trackId: x.trackId, availableFrom: toApiLocalDateTime(x.availableFrom), availableTo: toApiLocalDateTime(x.availableTo) })), startDate: toApiLocalDateTime(form.startDate), endDate: toApiLocalDateTime(form.endDate), registrationDeadline: toApiLocalDateTime(form.registrationDeadline), prizePool: Number(form.prizePool) };
       if (editingId) await updateTournament(editingId, payload);
       else await createTournament(payload);
       setMessage(`Giải đấu ${editingId ? "đã cập nhật" : "đã tạo"} thành công.`);
@@ -1703,11 +1707,12 @@ function WithdrawalManagement() {
   const [list, setList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(null);
+  const [sortBy, setSortBy] = useState("newest");
 
   const fetchList = async () => {
     setLoading(true);
     try {
-      const res = await request("/api/withdrawal/admin/pending");
+      const res = await request("/api/withdrawal/admin/all");
       const d = res?.data ?? res;
       setList(Array.isArray(d) ? d : []);
     } catch { /* ignore */ }
@@ -1715,6 +1720,26 @@ function WithdrawalManagement() {
   };
 
   useEffect(() => { fetchList(); }, []);
+
+  const getValue = (item, camel, pascal, fallback = null) => item?.[camel] ?? item?.[pascal] ?? fallback;
+  const formatDateTime = (value) => value ? new Date(value).toLocaleString("vi-VN") : "-";
+  const statusLabel = (status) => ({
+    pending: "Cho duyet",
+    completed: "Dong y",
+    rejected: "Tu choi",
+  })[(status || "").toLowerCase()] || status || "-";
+
+  const sortedList = useMemo(() => {
+    const items = [...list];
+    const amount = (w) => Number(getValue(w, "amount", "Amount", 0));
+    const created = (w) => new Date(getValue(w, "createdAt", "CreatedAt", 0)).getTime() || 0;
+    return items.sort((a, b) => {
+      if (sortBy === "oldest") return created(a) - created(b);
+      if (sortBy === "amountAsc") return amount(a) - amount(b);
+      if (sortBy === "amountDesc") return amount(b) - amount(a);
+      return created(b) - created(a);
+    });
+  }, [list, sortBy]);
 
   const handleProcess = async (id, status) => {
     setProcessing(id);
@@ -1725,60 +1750,82 @@ function WithdrawalManagement() {
       });
       fetchList();
     } catch (e) {
-      alert(e?.message ?? "Xử lý thất bại.");
+      alert(e?.message ?? "Xu ly that bai.");
     }
     setProcessing(null);
   };
 
   return (
     <div>
-      <PageTitle eyebrow="Tài chính" title="Quản lý rút tiền" description="Duyệt yêu cầu rút tiền từ người dùng." />
+      <PageTitle eyebrow="Tai chinh" title="Quan ly rut tien" description="Xem lich su va duyet yeu cau rut tien tu nguoi dung." />
+      <div className="admin-toolbar">
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+          <option value="newest">Moi nhat</option>
+          <option value="oldest">Cu nhat</option>
+          <option value="amountAsc">Tien: Thap - Cao</option>
+          <option value="amountDesc">Tien: Cao - Thap</option>
+        </select>
+        <span>{sortedList.length} yeu cau</span>
+      </div>
 
       {loading ? (
-        <p>Đang tải...</p>
-      ) : list.length === 0 ? (
+        <p>Dang tai...</p>
+      ) : sortedList.length === 0 ? (
         <div style={{ textAlign: "center", padding: "40px 0", color: "#657086" }}>
-          <p>Không có yêu cầu rút tiền nào đang chờ.</p>
+          <p>Chua co yeu cau rut tien nao.</p>
         </div>
       ) : (
         <div style={{ overflowX: "auto", border: "1px solid rgba(231,198,120,.1)", borderRadius: 16 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", background: "rgba(255, 250, 240, 0.96)" }}>
             <thead>
               <tr>
-                <th style={{ padding: 15, textAlign: "left", borderBottom: "1px solid rgba(231,198,120,.07)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#657086" }}>Người dùng</th>
-                <th style={{ padding: 15, textAlign: "left", borderBottom: "1px solid rgba(231,198,120,.07)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#657086" }}>Ngân hàng</th>
-                <th style={{ padding: 15, textAlign: "left", borderBottom: "1px solid rgba(231,198,120,.07)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#657086" }}>Số tài khoản</th>
-                <th style={{ padding: 15, textAlign: "left", borderBottom: "1px solid rgba(231,198,120,.07)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#657086" }}>Số tiền</th>
-                <th style={{ padding: 15, textAlign: "left", borderBottom: "1px solid rgba(231,198,120,.07)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#657086" }}>Ngày yêu cầu</th>
-                <th style={{ padding: 15, textAlign: "left", borderBottom: "1px solid rgba(231,198,120,.07)", fontSize: 10, textTransform: "uppercase", letterSpacing: 1, color: "#657086" }}>Thao tác</th>
+                <th style={th}>Nguoi dung</th>
+                <th style={th}>Ngan hang</th>
+                <th style={th}>So tai khoan</th>
+                <th style={th}>So tien</th>
+                <th style={th}>Thoi gian gui don</th>
+                <th style={th}>Thoi gian duyet</th>
+                <th style={th}>Trang thai</th>
+                <th style={th}>Thao tac</th>
               </tr>
             </thead>
             <tbody>
-              {list.map((w) => (
-                <tr key={w.id ?? w.Id}>
-                  <td style={{ padding: 15, borderBottom: "1px solid rgba(231,198,120,.07)", fontSize: 13, color: "#34415b" }}>{w.userName ?? w.UserName ?? "-"}</td>
-                  <td style={{ padding: 15, borderBottom: "1px solid rgba(231,198,120,.07)", fontSize: 13, color: "#34415b" }}>{w.bankName ?? w.BankName ?? "-"}</td>
-                  <td style={{ padding: 15, borderBottom: "1px solid rgba(231,198,120,.07)", fontSize: 13, color: "#34415b" }}>{w.accountNumber ?? w.AccountNumber ?? "-"}</td>
-                  <td style={{ padding: 15, borderBottom: "1px solid rgba(231,198,120,.07)", fontSize: 13, color: "#34415b" }}><strong>{(w.amount ?? w.Amount ?? 0).toLocaleString()} điểm</strong></td>
-                  <td style={{ padding: 15, borderBottom: "1px solid rgba(231,198,120,.07)", fontSize: 13, color: "#34415b" }}>{w.createdAt ? new Date(w.createdAt).toLocaleDateString() : "-"}</td>
-                  <td style={{ display: "flex", gap: 8 }}>
-                    <button
-                      style={{ padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, border: "none", background: "#1a7d1a", color: "#fff", cursor: "pointer" }}
-                      disabled={processing === (w.id ?? w.Id)}
-                      onClick={() => handleProcess(w.id ?? w.Id, "completed")}
-                    >
-                      {processing === (w.id ?? w.Id) ? "..." : "Đã chuyển tiền"}
-                    </button>
-                    <button
-                      style={{ padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, border: "none", background: "#c41e1e", color: "#fff", cursor: "pointer" }}
-                      disabled={processing === (w.id ?? w.Id)}
-                      onClick={() => handleProcess(w.id ?? w.Id, "rejected")}
-                    >
-                      Từ chối
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {sortedList.map((w) => {
+                const id = getValue(w, "id", "Id");
+                const status = getValue(w, "status", "Status", "");
+                const isPending = (status || "").toLowerCase() === "pending";
+                return (
+                  <tr key={id}>
+                    <td style={td}>{getValue(w, "userName", "UserName", "-")}</td>
+                    <td style={td}>{getValue(w, "bankName", "BankName", "-")}</td>
+                    <td style={td}>{getValue(w, "accountNumber", "AccountNumber", "-")}</td>
+                    <td style={td}><strong>{Number(getValue(w, "amount", "Amount", 0)).toLocaleString("vi-VN")} diem</strong></td>
+                    <td style={td}>{formatDateTime(getValue(w, "createdAt", "CreatedAt"))}</td>
+                    <td style={td}>{formatDateTime(getValue(w, "processedAt", "ProcessedAt"))}</td>
+                    <td style={td}><span className={`status status--${isPending ? "pending" : "active"}`}>{statusLabel(status)}</span></td>
+                    <td style={{ ...td, display: "flex", gap: 8 }}>
+                      {isPending ? (
+                        <>
+                          <button
+                            style={{ padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, border: "none", background: "#1a7d1a", color: "#fff", cursor: "pointer" }}
+                            disabled={processing === id}
+                            onClick={() => handleProcess(id, "completed")}
+                          >
+                            {processing === id ? "..." : "Dong y"}
+                          </button>
+                          <button
+                            style={{ padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, border: "none", background: "#c41e1e", color: "#fff", cursor: "pointer" }}
+                            disabled={processing === id}
+                            onClick={() => handleProcess(id, "rejected")}
+                          >
+                            Tu choi
+                          </button>
+                        </>
+                      ) : "-"}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

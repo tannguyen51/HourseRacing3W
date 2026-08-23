@@ -11,11 +11,15 @@ const localDateTimeValue = (value) => {
   return new Date(year, month - 1, day, hour, minute).getTime();
 };
 
-const dateOnlyToIso = (value, endOfDay = false) => {
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(year, month - 1, day, endOfDay ? 23 : 0, endOfDay ? 59 : 0, endOfDay ? 59 : 0, endOfDay ? 999 : 0);
-  return date.toISOString();
+const toApiLocalDateTime = (value, endOfDay = false) => {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return `${value}T${endOfDay ? "23:59:59.999" : "00:00:00"}`;
+  }
+  return value.length === 16 ? `${value}:00` : value;
 };
+
+const dateOnlyToIso = (value, endOfDay = false) => toApiLocalDateTime(value, endOfDay);
 
 function TournamentForm({ onClose, onSuccess }) {
   const [submitting, setSubmitting] = useState(false);
@@ -88,8 +92,8 @@ function TournamentForm({ onClose, onSuccess }) {
         registrationDeadline: form.registrationDeadline ? dateOnlyToIso(form.registrationDeadline, true) : null,
         tracks: trackSlots.map(x => ({
           trackId: x.trackId,
-          availableFrom: new Date(localDateTimeValue(x.availableFrom)).toISOString(),
-          availableTo: new Date(localDateTimeValue(x.availableTo)).toISOString(),
+          availableFrom: toApiLocalDateTime(x.availableFrom),
+          availableTo: toApiLocalDateTime(x.availableTo),
         })),
       };
 
@@ -150,3 +154,4 @@ function TournamentForm({ onClose, onSuccess }) {
 }
 
 export default TournamentForm;
+
