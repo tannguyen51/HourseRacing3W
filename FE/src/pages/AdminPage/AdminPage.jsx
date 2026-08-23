@@ -122,7 +122,8 @@ const formatDate = (value) =>
 const inputDate = (days = 0) => {
   const date = new Date();
   date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 16);
+  // dùng giờ địa phương, không đổi sang UTC (tránh lệch múi giờ)
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 };
 
 const toApiLocalDateTime = (value) => {
@@ -1165,10 +1166,10 @@ function ScheduleManagement({ type }) {
     event.preventDefault();
     try {
       if (type === "round") {
-        await createRound(selected, { ...form, scheduledStartDate: new Date(form.scheduledStartDate).toISOString(), scheduledEndDate: new Date(form.scheduledEndDate).toISOString() });
+        await createRound(selected, { ...form, scheduledStartDate: toApiLocalDateTime(form.scheduledStartDate), scheduledEndDate: toApiLocalDateTime(form.scheduledEndDate) });
         setItems(await getTournamentRounds(selected));
       } else {
-        await createRace({ ...form, tournamentId: selected, roundId: form.roundId || null, scheduledAt: new Date(form.scheduledAt).toISOString(), maxParticipants: Number(form.maxParticipants), distance: Number(form.distance), targetWeight: Number(form.targetWeight), weightTolerance: Number(form.weightTolerance), maxBallastWeight: Number(form.maxBallastWeight) });
+        await createRace({ ...form, tournamentId: selected, roundId: form.roundId || null, scheduledAt: toApiLocalDateTime(form.scheduledAt), maxParticipants: Number(form.maxParticipants), distance: Number(form.distance), targetWeight: Number(form.targetWeight), weightTolerance: Number(form.weightTolerance), maxBallastWeight: Number(form.maxBallastWeight) });
         setItems(await getTournamentRaces(selected));
       }
       setMessage(`${type === "round" ? "Vòng đấu" : "Cuộc đua"} đã tạo thành công.`);
@@ -1708,101 +1709,120 @@ function WithdrawalManagement() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(null);
   const [sortBy, setSortBy] = useState("newest");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize] = useState(20);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
+  // Sắp xếp + lọc + phân trang đều do server xử lý → đúng trên toàn bộ dữ liệu
   const fetchList = async () => {
     setLoading(true);
     try {
-      const res = await request("/api/withdrawal/admin/all");
+      const qs = new URLSearchParams({ sortBy, page: String(page), pageSize: String(pageSize) });
+      if (statusFilter) qs.set("status", statusFilter);
+      const res = await request(`/api/withdrawal/admin/all?${qs.toString()}`);
       const d = res?.data ?? res;
-      setList(Array.isArray(d) ? d : []);
+      setList(Array.isArray(d?.items) ? d.items : Array.isArray(d) ? d : []);
+      setTotal(d?.total ?? 0);
+      setTotalPages(d?.totalPages ?? 0);
     } catch { /* ignore */ }
     setLoading(false);
   };
 
-  useEffect(() => { fetchList(); }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchList(); }, [sortBy, statusFilter, page]);
+
+  // Đổi tiêu chí lọc/sắp xếp thì quay lại trang đầu
+  useEffect(() => { setPage(1); }, [sortBy, statusFilter]);
 
   const getValue = (item, camel, pascal, fallback = null) => item?.[camel] ?? item?.[pascal] ?? fallback;
   const formatDateTime = (value) => value ? new Date(value).toLocaleString("vi-VN") : "-";
   const statusLabel = (status) => ({
-    pending: "Cho duyet",
-    completed: "Dong y",
-    rejected: "Tu choi",
+    pending: "Chờ duyệt",
+    completed: "Đồng ý",
+    rejected: "Từ chối",
   })[(status || "").toLowerCase()] || status || "-";
 
-  const sortedList = useMemo(() => {
-    const items = [...list];
-    const amount = (w) => Number(getValue(w, "amount", "Amount", 0));
-    const created = (w) => new Date(getValue(w, "createdAt", "CreatedAt", 0)).getTime() || 0;
-    return items.sort((a, b) => {
-      if (sortBy === "oldest") return created(a) - created(b);
-      if (sortBy === "amountAsc") return amount(a) - amount(b);
-      if (sortBy === "amountDesc") return amount(b) - amount(a);
-      return created(b) - created(a);
-    });
-  }, [list, sortBy]);
-
   const handleProcess = async (id, status) => {
+    let note = null;
+    if (status === "rejected") {
+      note = window.prompt("Nhập lý do từ chối:");
+      if (note === null) return;              // admin bấm Huỷ
+      if (!note.trim()) { alert("Vui lòng nhập lý do từ chối."); return; }
+    }
     setProcessing(id);
     try {
       await request("/api/withdrawal/admin/process", {
         method: "POST",
-        body: JSON.stringify({ withdrawalId: id, status }),
+        body: JSON.stringify({ withdrawalId: id, status, note }),
       });
       fetchList();
     } catch (e) {
-      alert(e?.message ?? "Xu ly that bai.");
+      alert(e?.message ?? "Xử lý thất bại.");
     }
     setProcessing(null);
   };
 
   return (
     <div>
-      <PageTitle eyebrow="Tai chinh" title="Quan ly rut tien" description="Xem lich su va duyet yeu cau rut tien tu nguoi dung." />
+      <PageTitle eyebrow="Tài chính" title="Quản lý rút tiền" description="Xem lịch sử và duyệt yêu cầu rút tiền từ người dùng." />
       <div className="admin-toolbar">
         <select value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-          <option value="newest">Moi nhat</option>
-          <option value="oldest">Cu nhat</option>
-          <option value="amountAsc">Tien: Thap - Cao</option>
-          <option value="amountDesc">Tien: Cao - Thap</option>
+          <option value="newest">Mới nhất</option>
+          <option value="oldest">Cũ nhất</option>
+          <option value="amountAsc">Tiền: Thấp → Cao</option>
+          <option value="amountDesc">Tiền: Cao → Thấp</option>
         </select>
-        <span>{sortedList.length} yeu cau</span>
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          <option value="">Tất cả trạng thái</option>
+          <option value="pending">Chờ duyệt</option>
+          <option value="completed">Đồng ý</option>
+          <option value="rejected">Từ chối</option>
+        </select>
+        <span>{total} yêu cầu</span>
       </div>
 
       {loading ? (
-        <p>Dang tai...</p>
-      ) : sortedList.length === 0 ? (
+        <p>Đang tải...</p>
+      ) : list.length === 0 ? (
         <div style={{ textAlign: "center", padding: "40px 0", color: "#657086" }}>
-          <p>Chua co yeu cau rut tien nao.</p>
+          <p>Chưa có yêu cầu rút tiền nào.</p>
         </div>
       ) : (
         <div style={{ overflowX: "auto", border: "1px solid rgba(231,198,120,.1)", borderRadius: 16 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", background: "rgba(255, 250, 240, 0.96)" }}>
             <thead>
               <tr>
-                <th style={th}>Nguoi dung</th>
-                <th style={th}>Ngan hang</th>
-                <th style={th}>So tai khoan</th>
-                <th style={th}>So tien</th>
-                <th style={th}>Thoi gian gui don</th>
-                <th style={th}>Thoi gian duyet</th>
-                <th style={th}>Trang thai</th>
-                <th style={th}>Thao tac</th>
+                <th style={th}>Người dùng</th>
+                <th style={th}>Ngân hàng</th>
+                <th style={th}>Số tài khoản</th>
+                <th style={th}>Số tiền</th>
+                <th style={th}>Thời gian gửi đơn</th>
+                <th style={th}>Thời gian duyệt</th>
+                <th style={th}>Trạng thái</th>
+                <th style={th}>Người duyệt</th>
+                <th style={th}>Ghi chú</th>
+                <th style={th}>Thao tác</th>
               </tr>
             </thead>
             <tbody>
-              {sortedList.map((w) => {
+              {list.map((w) => {
                 const id = getValue(w, "id", "Id");
                 const status = getValue(w, "status", "Status", "");
                 const isPending = (status || "").toLowerCase() === "pending";
+                const note = getValue(w, "note", "Note");
                 return (
                   <tr key={id}>
                     <td style={td}>{getValue(w, "userName", "UserName", "-")}</td>
                     <td style={td}>{getValue(w, "bankName", "BankName", "-")}</td>
                     <td style={td}>{getValue(w, "accountNumber", "AccountNumber", "-")}</td>
-                    <td style={td}><strong>{Number(getValue(w, "amount", "Amount", 0)).toLocaleString("vi-VN")} diem</strong></td>
+                    <td style={td}><strong>{Number(getValue(w, "amount", "Amount", 0)).toLocaleString("vi-VN")} điểm</strong></td>
                     <td style={td}>{formatDateTime(getValue(w, "createdAt", "CreatedAt"))}</td>
                     <td style={td}>{formatDateTime(getValue(w, "processedAt", "ProcessedAt"))}</td>
                     <td style={td}><span className={`status status--${isPending ? "pending" : "active"}`}>{statusLabel(status)}</span></td>
+                    <td style={td}>{getValue(w, "processedByName", "ProcessedByName", "-")}</td>
+                    <td style={{ ...td, maxWidth: 220, whiteSpace: "normal" }} title={note ?? ""}>{note || "-"}</td>
                     <td style={{ ...td, display: "flex", gap: 8 }}>
                       {isPending ? (
                         <>
@@ -1811,14 +1831,14 @@ function WithdrawalManagement() {
                             disabled={processing === id}
                             onClick={() => handleProcess(id, "completed")}
                           >
-                            {processing === id ? "..." : "Dong y"}
+                            {processing === id ? "..." : "Đồng ý"}
                           </button>
                           <button
                             style={{ padding: "6px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, border: "none", background: "#c41e1e", color: "#fff", cursor: "pointer" }}
                             disabled={processing === id}
                             onClick={() => handleProcess(id, "rejected")}
                           >
-                            Tu choi
+                            Từ chối
                           </button>
                         </>
                       ) : "-"}
@@ -1828,6 +1848,26 @@ function WithdrawalManagement() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {!loading && totalPages > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 12, marginTop: 16 }}>
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(143,100,32,0.3)", background: "transparent", cursor: page <= 1 ? "not-allowed" : "pointer", opacity: page <= 1 ? 0.5 : 1 }}
+          >
+            ← Trước
+          </button>
+          <span style={{ fontSize: 13, color: "#657086" }}>Trang {page} / {totalPages}</span>
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+            style={{ padding: "6px 14px", borderRadius: 8, border: "1px solid rgba(143,100,32,0.3)", background: "transparent", cursor: page >= totalPages ? "not-allowed" : "pointer", opacity: page >= totalPages ? 0.5 : 1 }}
+          >
+            Sau →
+          </button>
         </div>
       )}
     </div>

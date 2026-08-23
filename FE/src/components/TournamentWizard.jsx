@@ -9,6 +9,9 @@ const toApiLocalDateTime = (value) => {
   return value.length === 16 ? `${value}:00` : value;
 };
 
+// Sinh giá trị cho input datetime-local theo giờ địa phương (không lệch UTC)
+const toInputValue = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+
 function TournamentWizard({ onClose, onSuccess }) {
   const [step, setStep] = useState(1);
   const [uploading, setUploading] = useState(false);
@@ -26,9 +29,9 @@ function TournamentWizard({ onClose, onSuccess }) {
       description: "",
       category: "",
       imageUrl: "",
-      startDate: startDate.toISOString().slice(0, 16),
-      endDate: endDate.toISOString().slice(0, 16),
-      registrationDeadline: deadline.toISOString().slice(0, 16),
+      startDate: toInputValue(startDate),
+      endDate: toInputValue(endDate),
+      registrationDeadline: toInputValue(deadline),
       prizePool: 0,
     };
   }

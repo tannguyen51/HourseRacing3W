@@ -151,11 +151,44 @@ public class WithdrawalService : IWithdrawalService
         }));
     }
 
+    public async Task<ServiceResult<object>> GetPagedAsync(string? sortBy, string? status, int page, int pageSize)
+    {
+        var (items, total) = await _withdrawalRepo.GetPagedAsync(sortBy, status, page, pageSize);
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 200) pageSize = 200;
+
+        return ServiceResult<object>.Ok(new
+        {
+            items = items.Select(w => new
+            {
+                w.Id,
+                w.Amount,
+                w.Status,
+                CreatedAt = ToUtc(w.CreatedAt),
+                ProcessedAt = ToUtc(w.ProcessedAt),
+                UserName = w.User?.FullName ?? w.User?.Email ?? "",
+                BankName = w.BankAccount?.BankName,
+                AccountNumber = w.BankAccount != null ? MaskAccountNumber(w.BankAccount.AccountNumber) : null,
+                AccountHolder = w.BankAccount?.AccountHolder,
+                ProcessedByName = w.ProcessedByUser?.FullName ?? w.ProcessedByUser?.Email,
+                Note = w.Note
+            }),
+            total,
+            page,
+            pageSize,
+            totalPages = pageSize > 0 ? (int)Math.Ceiling(total / (double)pageSize) : 0
+        });
+    }
+
     public async Task<ServiceResult<object>> ProcessWithdrawalAsync(Guid adminId, AdminProcessWithdrawalRequest request)
     {
         // Validate status value
         if (request.Status != "completed" && request.Status != "rejected")
             return ServiceResult<object>.Fail(StatusCodes.Status400BadRequest, "Trạng thái không hợp lệ. Chỉ chấp nhận 'completed' hoặc 'rejected'.");
+
+        if (request.Status == "rejected" && string.IsNullOrWhiteSpace(request.Note))
+            return ServiceResult<object>.Fail(StatusCodes.Status400BadRequest, "Vui lòng nhập lý do từ chối.");
 
         var withdrawal = await _withdrawalRepo.GetByIdAsync(request.WithdrawalId);
         if (withdrawal == null)
@@ -167,7 +200,7 @@ public class WithdrawalService : IWithdrawalService
         withdrawal.Status = request.Status;
         withdrawal.ProcessedAt = DateTime.UtcNow;
         withdrawal.ProcessedByUserId = adminId;
-        withdrawal.Note = request.Note;
+        withdrawal.Note = request.Note?.Trim();
 
         if (request.Status == "rejected")
         {

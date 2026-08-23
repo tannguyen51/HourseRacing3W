@@ -22,21 +22,22 @@ export function getRunnerColor(horse, fallbackIndex = 0) {
 }
 
 // ── Hình học oval (ellipse) ──
-// theta tăng → chạy clockwise trên màn hình (y hướng xuống).
-// ovalPose với theta, heading là tiếp tuyến clockwise.
+// theta tăng → chạy THEO chiều kim đồng hồ trên màn hình.
+// Trục y của canvas/SVG hướng xuống, nên giữ nguyên dấu + của sin:
+//   theta = π (9h, trái) → 3π/2 (12h, trên) → 2π (3h, phải) → 5π/2 (6h, dưới)
+// tức trái → trên → phải → dưới = thuận chiều kim đồng hồ.
+// heading là vector tiếp tuyến (đạo hàm theo theta), cùng dấu với chuyển động.
 export function ovalPose(cx, cy, rx, ry, theta) {
   const x = cx + rx * Math.cos(theta);
-  // Trục y của màn hình hướng xuống, vì vậy đảo dấu sin để chuyển động
-  // theo chiều đua tiêu chuẩn (ngược chiều kim đồng hồ).
-  const y = cy - ry * Math.sin(theta);
+  const y = cy + ry * Math.sin(theta);
   // đạo hàm theo theta → hướng tiếp tuyến
   const dx = -rx * Math.sin(theta);
-  const dy = -ry * Math.cos(theta);
+  const dy = ry * Math.cos(theta);
   const heading = Math.atan2(dy, dx);
   return { x, y, heading };
 }
 
-// u ∈ [0,1): quãng đường → góc trên oval, xuất phát 9h, chạy thuận chiều kim đồng hồ (clockwise)
+// u ∈ [0,1): quãng đường → góc trên oval; xuất phát 9h, chạy thuận chiều kim đồng hồ
 export function poseForProgress(cx, cy, rx, ry, u) {
   const theta = START_ANGLE + 2 * Math.PI * u;
   return ovalPose(cx, cy, rx, ry, theta);
@@ -132,106 +133,4 @@ export function formatCountdown(ms) {
   const m = Math.floor(s / 60);
   const sec = s % 60;
   return `${m}:${String(sec).padStart(2, "0")}`;
-}
-
-// ── Demo: randomize tốc độ + người thắng (chỉ client, không ảnh hưởng BE) ──
-// Mỗi lần bấm Demo → kết quả khác, dẫn đầu thay đổi liên tục do flutter.
-function mulberry32(seed) {
-  return function () {
-    let t = (seed += 0x6d2b79f5);
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-export function createDemoScript(baseScript) {
-  if (!baseScript || !Array.isArray(baseScript.horses) || baseScript.horses.length === 0) return baseScript;
-  const seed = Math.floor(Math.random() * 0xffffffff);
-  const rnd = mulberry32(seed);
-  const total = Number(baseScript.trackLength ?? 0);
-  const oneLap = Number(baseScript.oneLapLength ?? total);
-  const laps = Math.max(1, Number(baseScript.laps ?? 1));
-
-  // random base speed 58–72s equivalent
-  const baseSpeed = total / (58 + rnd() * 14);
-
-  const horses = baseScript.horses.map((h) => ({ ...h, checkpoints: [...h.checkpoints] }));
-  const horseData = horses.map((h) => {
-    const m1 = 0.94 + rnd() * 0.10;
-    const m2 = 0.92 + rnd() * 0.12;
-    const m3 = 0.94 + rnd() * 0.10;
-    const flutterAmp = 0.07 + rnd() * 0.04; // 0.07–0.11 trước là 0.15–0.25
-    const phase = [rnd(), rnd()];
-    return { h, m1, m2, m3, flutterAmp, phase };
-  });
-
-  const count = 180;
-  for (const { h, m1, m2, m3, flutterAmp, phase } of horseData) {
-    h.sectionMultipliers = [Number(m1.toFixed(6)), Number(m2.toFixed(6)), Number(m3.toFixed(6))];
-    const pts = [];
-    let tAcc = 0;
-    let prevD = 0;
-    pts.push({ d: 0, t: 0 });
-    for (let k = 1; k <= count; k++) {
-      const d = Number((total * k / count).toFixed(3));
-      const midD = (prevD + d) * 0.5;
-      const progress = midD / total;
-      let baseM;
-      if (progress < 0.35) baseM = m1;
-      else if (progress < 0.70) baseM = m2;
-      else baseM = m3;
-      // mượt: chỉ 2 sóng chậm, biên độ giảm dần, không còn sóng 18π
-      const amp = flutterAmp * (1 - progress * 0.35);
-      const wave =
-        Math.sin(progress * Math.PI * 5 + phase[0] * Math.PI * 2) * 0.6 +
-        Math.sin(progress * Math.PI * 9 + phase[1] * Math.PI * 2) * 0.4;
-      const speedMul = Math.max(0.78, Math.min(1.22, baseM + wave * amp));
-      const segLen = d - prevD;
-      tAcc += segLen / (baseSpeed * speedMul);
-      pts.push({ d, t: Number((tAcc * 1000).toFixed(1)) });
-      prevD = d;
-    }
-    h.checkpoints = pts;
-    h.finishTimeMs = pts[pts.length - 1].t;
-  }
-
-  // Ép 1 ngựa thắng random — chỉ bứt tốc 15% cuối, không nén toàn bộ timeline (tránh giật)
-  const winnerIdx = Math.floor(rnd() * horses.length);
-  const winner = horses[winnerIdx];
-  const cutD = total * 0.85;
-  const winnerCutIdx = winner.checkpoints.findIndex((p) => p.d >= cutD);
-  if (winnerCutIdx > 0) {
-    const othersMin = Math.min(...horses.filter((_, i) => i !== winnerIdx).map((x) => x.finishTimeMs));
-    const target = Math.max(1000, othersMin - (180 + rnd() * 220));
-    const needSave = winner.finishTimeMs - target;
-    if (needSave > 0) {
-      const tailDur = winner.finishTimeMs - winner.checkpoints[winnerCutIdx].t;
-      const tailFactor = Math.max(0.72, (tailDur - needSave) / Math.max(1, tailDur));
-      winner.checkpoints = winner.checkpoints.map((p, i) => {
-        if (i <= winnerCutIdx) return p;
-        const t0 = winner.checkpoints[winnerCutIdx].t;
-        return { d: p.d, t: Number((t0 + (p.t - t0) * tailFactor).toFixed(1)) };
-      });
-      winner.finishTimeMs = winner.checkpoints[winner.checkpoints.length - 1].t;
-    }
-  }
-
-  // shuffle a bit: re-derive finishOrder after compression
-  const finishOrder = [...horses].sort((a, b) => a.finishTimeMs - b.finishTimeMs).map((h) => h.horseId);
-  // reassign lanes by finishOrder (optional — keep visual stable? assign by finish to match podium)
-  const laneById = new Map(finishOrder.map((id, i) => [String(id), i % 8 + 1]));
-  for (const h of horses) h.lane = laneById.get(String(h.horseId)) ?? h.lane;
-
-  return {
-    ...baseScript,
-    horses,
-    finishOrder,
-    durationMs: Math.max(...horses.map((h) => h.finishTimeMs)),
-    oneLapLength: oneLap,
-    trackLength: total,
-    laps,
-    baseSpeed: Number(baseSpeed.toFixed(4)),
-    seed: `demo-${seed.toString(16)}`,
-  };
 }

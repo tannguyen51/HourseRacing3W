@@ -14,6 +14,8 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
   const startLabel = fmtDate(tournamentStartDate);
   const endLabel = fmtDate(tournamentEndDate);
   const toLocal = (v) => { if (!v) return ""; const d = new Date(v); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
+  // Gửi nguyên giờ địa phương (không đổi sang UTC) để BE lưu đúng giờ admin nhập
+  const toApiLocalDateTime = (v) => { if (!v) return null; return v.length === 16 ? `${v}:00` : v; };
 
   const [form, setForm] = useState({
     tournamentId: tournamentId || "",
@@ -32,9 +34,9 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
 
   const [rounds, setRounds] = useState(() => {
     if (isEdit && raceData?.roundNames) {
-      return raceData.roundNames.split(",").map(name => ({ name: name.trim(), scheduledAt: "" }));
+      return raceData.roundNames.split(",").map(name => ({ name: name.trim() }));
     }
-    return [{ name: "Vòng 1", scheduledAt: "" }];
+    return [{ name: "Vòng 1" }];
   });
 
   const [selectedRefereeIds, setSelectedRefereeIds] = useState(raceData?._selectedRefereeIds || []);
@@ -61,6 +63,16 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
     const track = tracks.find((t) => (t.trackId ?? t.TrackId) === id);
     setForm((prev) => (track ? applyTrackParams(track, { ...prev, trackId: id }) : { ...prev, trackId: id }));
   };
+
+  // Khung giờ sân đấu được phép dùng trong giải (TournamentTrack.AvailableFrom/To)
+  const trackWindow = (() => {
+    const t = tracks.find((x) => (x.trackId ?? x.TrackId) === form.trackId);
+    if (!t) return { from: "", to: "", label: "", toLabel: "" };
+    const from = toLocal(t.availableFrom ?? t.AvailableFrom);
+    const to = toLocal(t.availableTo ?? t.AvailableTo);
+    const pretty = (v) => v ? v.replace("T", " ") : "";
+    return { from, to, label: from && to ? `${pretty(from)} → ${pretty(to)}` : "", toLabel: pretty(to) };
+  })();
 
   // Edit mode: sau khi tải danh sách sân, đồng bộ chiều dài/sức chứa theo sân đã chọn
   useEffect(() => {
@@ -106,7 +118,7 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
 
   const addRound = () => {
     const nextNum = rounds.length + 1;
-    setRounds((prev) => [...prev, { name: `Vòng ${nextNum}`, scheduledAt: "" }]);
+    setRounds((prev) => [...prev, { name: `Vòng ${nextNum}` }]);
   };
 
   const removeRound = (idx) => {
@@ -120,6 +132,11 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
     if (!form.trackId) { setError("Vui lòng chọn sân đấu của giải."); return; }
     if (!form.scheduledAt) { setError("Vui lòng chọn thời gian bắt đầu."); return; }
     if (!form.scheduledEndAt || new Date(form.scheduledEndAt) <= new Date(form.scheduledAt)) { setError("Thời gian kết thúc phải sau thời gian bắt đầu."); return; }
+    if (trackWindow.from && trackWindow.to) {
+      if (new Date(form.scheduledAt) < new Date(trackWindow.from) || new Date(form.scheduledEndAt) > new Date(trackWindow.to)) {
+        setError(`Lịch cuộc đua phải nằm trong khung giờ của sân: ${trackWindow.label}`); return;
+      }
+    }
     submittingRef.current = true;
     setSubmitting(true);
     setError("");
@@ -141,8 +158,8 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
         maxBallastWeight: Number(form.maxBallastWeight),
         laps: Number(form.laps) || 2,
         winnerOverrideHorseId: winnerOverrideSend,
-        scheduledAt: new Date(form.scheduledAt).toISOString(),
-        scheduledEndAt: form.scheduledEndAt ? new Date(form.scheduledEndAt).toISOString() : null,
+        scheduledAt: toApiLocalDateTime(form.scheduledAt),
+        scheduledEndAt: toApiLocalDateTime(form.scheduledEndAt),
         roundNames: rounds.filter(r => r.name).map(r => r.name).join(","),
       };
 
@@ -215,13 +232,13 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
           <div style={{marginBottom:16}}>
             <label style={{display:"block",fontSize:13,fontWeight:600,marginBottom:6,color:"#34415b"}}>Vòng đua ({rounds.length})</label>
             {rounds.map((round, idx) => (
-              <div key={idx} style={{display:"grid",gridTemplateColumns:"1fr 2fr auto",gap:8,marginBottom:8}}>
+              <div key={idx} style={{display:"grid",gridTemplateColumns:"1fr auto",gap:8,marginBottom:8}}>
                 <input value={round.name} onChange={(e) => updateRound(idx, "name", e.target.value)} placeholder="VD: Vòng loại, Bán kết..." style={{padding:"10px 12px",borderRadius:8,border:"1px solid rgba(143,100,32,0.2)",fontSize:13}} />
-                <input type="datetime-local" value={round.scheduledAt} onChange={(e) => updateRound(idx, "scheduledAt", e.target.value)} style={{padding:"10px 12px",borderRadius:8,border:"1px solid rgba(143,100,32,0.2)",fontSize:13}} />
                 {rounds.length > 1 && <button type="button" onClick={() => removeRound(idx)} style={{padding:"10px 16px",borderRadius:8,border:"1px solid #ef4444",background:"transparent",color:"#ef4444",cursor:"pointer",fontSize:16}}>X</button>}
               </div>
             ))}
             <button type="button" onClick={addRound} style={{background:"none",border:"none",color:"#8f6420",cursor:"pointer",fontSize:13,fontWeight:600,padding:0}}>+ Thêm vòng</button>
+            <small style={{display:"block",marginTop:6,color:"#657086"}}>Nhãn phân loại giai đoạn của cuộc đua trong giải. Lịch thi đấu lấy theo "Thời gian bắt đầu / kết thúc" bên dưới.</small>
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:8}}>
@@ -230,8 +247,8 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
           </div>
           <p style={{margin:"0 0 16px",fontSize:12,color:"#657086"}}>Chiều dài và số ngựa tối đa được lấy từ sân đấu đã chọn, không thể sửa ở đây. Muốn thay đổi, vào mục <strong>Quản lý sân đấu</strong>.</p>
 
-          <Input label="Thời gian bắt đầu" type="datetime-local" value={form.scheduledAt} onChange={(e) => updateForm("scheduledAt", e.target.value)} required />
-          <Input label="Thời gian kết thúc (dự kiến)" type="datetime-local" value={form.scheduledEndAt} onChange={(e) => updateForm("scheduledEndAt", e.target.value)} required />
+          <Input label="Thời gian bắt đầu" type="datetime-local" value={form.scheduledAt} onChange={(e) => updateForm("scheduledAt", e.target.value)} min={trackWindow.from} max={trackWindow.to} required hint={trackWindow.label ? `Sân mở: ${trackWindow.label}` : "Hãy chọn sân đấu trước"} />
+          <Input label="Thời gian kết thúc (dự kiến)" type="datetime-local" value={form.scheduledEndAt} onChange={(e) => updateForm("scheduledEndAt", e.target.value)} min={form.scheduledAt || trackWindow.from} max={trackWindow.to} required hint={trackWindow.label ? `Phải kết thúc trước ${trackWindow.toLabel}` : ""} />
 
           <div style={{padding:16,borderRadius:10,background:"#f8fafc",border:"1px solid #e2e8f0",marginBottom:16}}>
             <strong style={{display:"block",marginBottom:10,color:"#172033"}}>Quy định tải trọng</strong>

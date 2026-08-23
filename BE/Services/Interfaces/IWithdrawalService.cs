@@ -13,5 +13,6 @@ public interface IWithdrawalService
     Task<ServiceResult<object>> GetHistoryAsync(Guid userId);
     Task<ServiceResult<object>> GetPendingAsync();
     Task<ServiceResult<object>> GetAllAsync();
+    Task<ServiceResult<object>> GetPagedAsync(string? sortBy, string? status, int page, int pageSize);
     Task<ServiceResult<object>> ProcessWithdrawalAsync(Guid adminId, AdminProcessWithdrawalRequest request);
 }

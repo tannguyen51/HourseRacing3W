@@ -4,7 +4,6 @@ import {
   getRunnerColor,
   laneRadii,
   poseForProgress,
-  START_ANGLE,
 } from "./engine";
 
 const W = 1100;
@@ -16,7 +15,6 @@ const BASE_RY = 195;
 
 // wider track + smaller infield
 const OUTER_DIRT_PAD = 42;
-const OUTER_RAIL_PAD = 44;
 const INNER_RAIL_INSET = 22;
 const INFIELD_INSET = 38;
 
@@ -90,9 +88,13 @@ function FireworksOverlay({ winner, onClose }) {
   const bursts = useMemo(() => {
     const colors = ["#ffd700", "#ff4d6a", "#4dc9ff", "#7cff6b", "#ff8a2e", "#c084fc"];
     const fx = CX - BASE_RX; // 9h finish line x
+    // Lệch vị trí tất định (không dùng Math.random trong render — React yêu cầu
+    // render thuần khiết; ngẫu nhiên ở đây sẽ nhảy lung tung mỗi lần re-render).
+    const jitterX = [-5, 6, -2, 4, -6];
+    const jitterY = [3, -4, 5, -2, 1];
     return Array.from({ length: 5 }, (_, i) => ({
-      x: fx + (i % 2 === 0 ? 34 : -22) + (Math.random() * 14 - 7),
-      y: CY + (i - 2) * 26 + (Math.random() * 10 - 5),
+      x: fx + (i % 2 === 0 ? 34 : -22) + jitterX[i],
+      y: CY + (i - 2) * 26 + jitterY[i],
       color: colors[i % colors.length],
       delay: i * 180,
     }));
@@ -234,7 +236,7 @@ function FireworksOverlay({ winner, onClose }) {
 /**
  * Đường đua chân thực — top-down oval.
  */
-export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished }) {
+export default function RaceTrack({ script, startsAtEpoch, serverNowSkew = 0, onRanking, onFinished }) {
   const wrapRef = useRef(null);
   const layerRef = useRef(null);
   const markerRefs = useRef({});
@@ -305,6 +307,7 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
   // rAF loop
   useEffect(() => {
     if (!horses.length) return;
+    const skew = Number(serverNowSkew) || 0;
     const reduced = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const emitEvery = reduced ? 18 : 7;
     let rafId = 0;
@@ -313,24 +316,34 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
     const tick = () => {
       rafId = requestAnimationFrame(tick);
       frame++;
-      const elapsed = startsAtEpoch ? Date.now() - startsAtEpoch : -1;
+      // Đồng hồ đã hiệu chỉnh theo server (serverNowEpoch) — máy client lệch giờ
+      // vẫn chạy đúng thời điểm, và khớp với bảng xếp hạng bên ngoài.
+      const elapsed = startsAtEpoch ? Date.now() + skew - startsAtEpoch : -1;
 
       for (const h of horses) {
         const el = markerRefs.current[h.horseId];
         if (!el) continue;
         const d = elapsed >= 0 ? interpolateDistance(h.checkpoints, elapsed) : 0;
         const totalLen = Number(script?.trackLength ?? 0);
-        const oneLap = Number(script?.oneLapLength ?? totalLen);
-        const laps = Math.max(1, Number(script?.laps ?? 1));
-        const u = totalLen > 0 ? Math.max(0, Math.min(d, totalLen)) / (oneLap || 1) % 1 : 0;
-        // use poseForProgress so 9h start is honored; handle lap wrap
-        const lapProgress = totalLen > 0 ? (d % oneLap) / oneLap : 0;
+        const oneLapRaw = Number(script?.oneLapLength ?? totalLen);
+        // chống chia 0 → tránh NaN làm ngựa biến mất khỏi màn hình
+        const oneLap = oneLapRaw > 0 ? oneLapRaw : (totalLen > 0 ? totalLen : 1);
         const { rx, ry } = laneRadii(BASE_RX, BASE_RY, h.lane);
-        const pose = poseForProgress(CX, CY, rx, ry, lapProgress);
-        // keep finished horses at finish line
+        // ngựa về đích thì dừng đúng tại vạch, không nhảy giật về u = 0
         const isFinished = totalLen > 0 && d >= totalLen;
-        const finalPose = isFinished ? poseForProgress(CX, CY, rx, ry, 0) : pose;
+        const dClamped = totalLen > 0 ? Math.min(d, totalLen) : d;
+        let lapProgress = (dClamped % oneLap) / oneLap;
+        // Vì trackLength = oneLap × laps nên khi về đích lapProgress luôn = 0,
+        // mọi ngựa dồn về đúng vạch đích và đè lên nhau. Cho ngựa đã đích trôi
+        // thêm một đoạn ngắn theo thứ tự cán đích để tách nhau ra.
+        if (isFinished) {
+          const overshoot = Math.min(0.05, ((elapsed - (h.finishTimeMs ?? 0)) / 4000) * 0.05);
+          lapProgress = Math.max(0, overshoot);
+        }
+        const finalPose = poseForProgress(CX, CY, rx, ry, lapProgress);
         el.style.transform = `translate3d(${finalPose.x.toFixed(1)}px, ${finalPose.y.toFixed(1)}px, 0) rotate(${((finalPose.heading * 180) / Math.PI).toFixed(1)}deg)`;
+        if (isFinished) el.dataset.finished = "1";
+        else delete el.dataset.finished;
       }
 
       // fireworks when winner crosses finish
@@ -344,7 +357,9 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
           .map((h) => {
             const d = interpolateDistance(h.checkpoints, elapsed);
             const totalLen = Number(script?.trackLength ?? 0);
-            const oneLapLocal = Number(script?.oneLapLength ?? totalLen);
+            const oneLapRawLocal = Number(script?.oneLapLength ?? totalLen);
+            // chống chia 0 giống vòng vẽ ngựa → tránh cột "Vòng" hiện NaN
+            const oneLapLocal = oneLapRawLocal > 0 ? oneLapRawLocal : (totalLen > 0 ? totalLen : 1);
             const lapsLocal = Math.max(1, Number(script?.laps ?? 1));
             const lap = totalLen > 0 ? Math.min(lapsLocal, Math.floor(Math.max(0, Math.min(d, totalLen)) / oneLapLocal) + 1) : 1;
             const finished = totalLen > 0 && d >= totalLen;
@@ -366,7 +381,7 @@ export default function RaceTrack({ script, startsAtEpoch, onRanking, onFinished
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  }, [script, startsAtEpoch, oneLap, laps, durationMs, horses, winnerHorse, winnerFinishMs]);
+  }, [script, startsAtEpoch, serverNowSkew, oneLap, laps, durationMs, horses, winnerHorse, winnerFinishMs]);
 
   const laneGeometry = useMemo(
     () => horses.map((h) => ({ lane: h.lane, ...laneRadii(BASE_RX, BASE_RY, h.lane) })),

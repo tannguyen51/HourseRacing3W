@@ -69,9 +69,13 @@ public class WithdrawalController : ControllerBase
 
     [Authorize(Roles = "Admin")]
     [HttpGet("admin/all")]
-    public async Task<ActionResult> GetAll()
+    public async Task<ActionResult> GetAll(
+        [FromQuery] string? sortBy = null,
+        [FromQuery] string? status = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
-        var result = await _withdrawalService.GetAllAsync();
+        var result = await _withdrawalService.GetPagedAsync(sortBy, status, page, pageSize);
         return StatusCode(result.StatusCode, result.Result);
     }
 
