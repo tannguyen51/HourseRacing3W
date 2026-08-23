@@ -34,6 +34,18 @@ public class RaceManagementService : IRaceManagementService
     private readonly ApplicationDbContext _db;
     private readonly IHubContext<RaceHub> _hub;
 
+    /// <summary>
+    /// Chuẩn hoá DateTime về giờ tường (wall-clock) ổn định — xem chú thích cùng tên
+    /// ở TournamentService. Bắt buộc dùng trước mọi phép so sánh giữa giá trị từ
+    /// request (Kind=Unspecified) và giá trị đọc từ DB, vì so hai DateTime khác Kind
+    /// trong .NET chỉ so ticks và bỏ qua Kind.
+    /// </summary>
+    private static DateTime ToWallClock(DateTime value)
+        => DateTime.SpecifyKind(value, DateTimeKind.Utc);
+
+    private static DateTime? ToWallClock(DateTime? value)
+        => value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : null;
+
     public RaceManagementService(
         IRaceRepository raceRepo,
         IRaceEntryRepository entryRepo,
@@ -84,8 +96,12 @@ public class RaceManagementService : IRaceManagementService
                 return ServiceResult<RaceDetailResponse>.Error("Không tìm thấy giải đấu", 404);
             }
 
+            // Chuẩn hoá giờ tường trước khi validate, cùng hệ quy chiếu với TournamentTrack
+            var scheduledAt = ToWallClock(request.ScheduledAt);
+            var scheduledEndAt = ToWallClock(request.ScheduledEndAt);
+
             var scheduleError = await ValidateTrackScheduleAsync(request.TournamentId, request.TrackId,
-                request.ScheduledAt, request.ScheduledEndAt, null);
+                scheduledAt, scheduledEndAt, null);
             if (scheduleError != null)
                 return ServiceResult<RaceDetailResponse>.Fail(400, scheduleError);
             var track = await _db.Tracks.Where(x => x.Id == request.TrackId)
@@ -97,8 +113,8 @@ public class RaceManagementService : IRaceManagementService
                 Name = request.Name,
                 TournamentId = request.TournamentId,
                 RoundId = request.RoundId,
-                ScheduledAt = request.ScheduledAt,
-                ScheduledEndAt = request.ScheduledEndAt,
+                ScheduledAt = scheduledAt,
+                ScheduledEndAt = scheduledEndAt,
                 TrackId = request.TrackId,
                 Status = RaceStatus.Scheduled,
                 Location = request.Location,
@@ -162,8 +178,8 @@ public class RaceManagementService : IRaceManagementService
             if (weightValidationError != null)
                 return ServiceResult<RaceDetailResponse>.Fail(400, weightValidationError);
 
-            var proposedStart = request.ScheduledAt ?? race.ScheduledAt;
-            var proposedEnd = request.ScheduledEndAt ?? race.ScheduledEndAt;
+            var proposedStart = ToWallClock(request.ScheduledAt ?? race.ScheduledAt);
+            var proposedEnd = ToWallClock(request.ScheduledEndAt ?? race.ScheduledEndAt);
             var proposedTrackId = request.TrackId ?? race.TrackId;
             var scheduleError = await ValidateTrackScheduleAsync(race.TournamentId, proposedTrackId,
                 proposedStart, proposedEnd, race.Id);
@@ -177,7 +193,7 @@ public class RaceManagementService : IRaceManagementService
             if (!string.IsNullOrEmpty(request.Name))
                 race.Name = request.Name;
             if (request.ScheduledAt.HasValue)
-                race.ScheduledAt = request.ScheduledAt.Value;
+                race.ScheduledAt = ToWallClock(request.ScheduledAt.Value);
             if (!string.IsNullOrEmpty(request.Location))
                 race.Location = request.Location;
             if (!string.IsNullOrEmpty(request.Description))
@@ -195,7 +211,7 @@ public class RaceManagementService : IRaceManagementService
             if (request.MaxBallastWeight.HasValue)
                 race.MaxBallastWeight = request.MaxBallastWeight.Value;
             if (request.ScheduledEndAt.HasValue)
-                race.ScheduledEndAt = request.ScheduledEndAt.Value;
+                race.ScheduledEndAt = ToWallClock(request.ScheduledEndAt.Value);
             if (request.TrackId.HasValue)
                 race.TrackId = request.TrackId;
 
@@ -829,8 +845,16 @@ public class RaceManagementService : IRaceManagementService
             x.TournamentId == tournamentId && x.TrackId == trackId.Value);
         if (assignment == null)
             return "Sân đấu chưa được thêm vào giải đấu này.";
-        if (scheduledAt < assignment.AvailableFrom || scheduledEndAt > assignment.AvailableTo)
-            return "Lịch cuộc đua phải nằm trong khung ngày giờ đã chọn cho sân đấu.";
+
+        // Đưa cả hai vế về cùng Kind — so DateTime khác Kind chỉ so ticks nên sẽ
+        // lệch đúng bằng offset múi giờ của máy chạy backend.
+        var start = ToWallClock(scheduledAt);
+        var end = ToWallClock(scheduledEndAt.Value);
+        var availFrom = ToWallClock(assignment.AvailableFrom);
+        var availTo = ToWallClock(assignment.AvailableTo);
+
+        if (start < availFrom || end > availTo)
+            return $"Lịch cuộc đua phải nằm trong khung giờ của sân: {availFrom:dd/MM/yyyy HH:mm} → {availTo:dd/MM/yyyy HH:mm}.";
 
         var overlaps = await _db.Races.AsNoTracking().AnyAsync(r =>
             r.TrackId == trackId && r.Id != excludedRaceId && r.Status != RaceStatus.Cancelled &&

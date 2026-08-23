@@ -13,6 +13,21 @@ namespace HorseRacing.Services;
 
 public class TournamentService : ITournamentService
 {
+    /// <summary>
+    /// Chuẩn hoá DateTime do client gửi lên thành giờ tường (wall-clock) ổn định.
+    ///
+    /// Cột trong DB là timestamptz và Program.cs bật EnableLegacyTimestampBehavior,
+    /// nên Npgsql sẽ coi Kind=Unspecified là giờ LOCAL CỦA MÁY SERVER rồi tự đổi sang
+    /// UTC khi ghi — máy dev (UTC+7) và Railway (UTC) cho ra hai kết quả khác nhau từ
+    /// cùng một payload. Gán Kind=Utc để giá trị được lưu và đọc lại y nguyên như
+    /// admin đã nhập, không phụ thuộc múi giờ của server.
+    /// </summary>
+    private static DateTime ToWallClock(DateTime value)
+        => DateTime.SpecifyKind(value, DateTimeKind.Utc);
+
+    private static DateTime? ToWallClock(DateTime? value)
+        => value.HasValue ? DateTime.SpecifyKind(value.Value, DateTimeKind.Utc) : null;
+
     private readonly ITournamentRepository _tournamentRepo;
     private readonly INotificationService _notificationService;
     private readonly IUserRepository _userRepo;
@@ -55,16 +70,24 @@ public class TournamentService : ITournamentService
     {
         try
         {
-            if (request.StartDate >= request.EndDate)
+            // Chuẩn hoá TRƯỚC mọi so sánh — tránh so DateTime khác Kind (chỉ so ticks, bỏ qua Kind)
+            var startDate = ToWallClock(request.StartDate);
+            var endDate = ToWallClock(request.EndDate);
+            var registrationDeadline = ToWallClock(request.RegistrationDeadline);
+            var tracks = request.Tracks
+                .Select(x => new { x.TrackId, From = ToWallClock(x.AvailableFrom), To = ToWallClock(x.AvailableTo) })
+                .ToList();
+
+            if (startDate >= endDate)
                 return ServiceResult<TournamentResponse>.Fail(400, "Thời gian kết thúc giải phải sau thời gian bắt đầu.");
-            if (request.Tracks.Count == 0)
+            if (tracks.Count == 0)
                 return ServiceResult<TournamentResponse>.Fail(400, "Vui lòng thêm ít nhất một sân đấu cho giải.");
-            if (request.Tracks.GroupBy(x => x.TrackId).Any(g => g.Count() > 1))
+            if (tracks.GroupBy(x => x.TrackId).Any(g => g.Count() > 1))
                 return ServiceResult<TournamentResponse>.Fail(400, "Một sân đấu chỉ được thêm một lần vào giải.");
-            if (request.Tracks.Any(x => x.AvailableFrom >= x.AvailableTo || x.AvailableFrom < request.StartDate || x.AvailableTo > request.EndDate))
+            if (tracks.Any(x => x.From >= x.To || x.From < startDate || x.To > endDate))
                 return ServiceResult<TournamentResponse>.Fail(400, "Khung giờ của sân phải nằm trong thời gian diễn ra giải.");
 
-            var trackIds = request.Tracks.Select(x => x.TrackId).ToList();
+            var trackIds = tracks.Select(x => x.TrackId).ToList();
             if (await _db.Tracks.CountAsync(x => trackIds.Contains(x.Id)) != trackIds.Count)
                 return ServiceResult<TournamentResponse>.Fail(400, "Có sân đấu không tồn tại.");
 
@@ -73,9 +96,9 @@ public class TournamentService : ITournamentService
                 Id = Guid.NewGuid(),
                 Name = request.Name,
                 Description = request.Description,
-                StartDate = request.StartDate,
-                EndDate = request.EndDate,
-                RegistrationDeadline = request.RegistrationDeadline,
+                StartDate = startDate,
+                EndDate = endDate,
+                RegistrationDeadline = registrationDeadline,
                 Venue = request.Venue,
                 ImageUrl = request.ImageUrl,
                 PrizePool = request.PrizePool ?? 0,
@@ -84,11 +107,11 @@ public class TournamentService : ITournamentService
                 CreatedAt = DateTime.UtcNow
             };
 
-            foreach (var item in request.Tracks)
+            foreach (var item in tracks)
                 tournament.TournamentTracks.Add(new TournamentTrack
                 {
                     Id = Guid.NewGuid(), TrackId = item.TrackId,
-                    AvailableFrom = item.AvailableFrom, AvailableTo = item.AvailableTo
+                    AvailableFrom = item.From, AvailableTo = item.To
                 });
 
             await _tournamentRepo.AddAsync(tournament);
@@ -210,11 +233,11 @@ public class TournamentService : ITournamentService
             if (request.Description != null)
                 tournament.Description = request.Description;
             if (request.StartDate.HasValue)
-                tournament.StartDate = request.StartDate.Value;
+                tournament.StartDate = ToWallClock(request.StartDate.Value);
             if (request.EndDate.HasValue)
-                tournament.EndDate = request.EndDate.Value;
+                tournament.EndDate = ToWallClock(request.EndDate.Value);
             if (request.RegistrationDeadline.HasValue)
-                tournament.RegistrationDeadline = request.RegistrationDeadline.Value;
+                tournament.RegistrationDeadline = ToWallClock(request.RegistrationDeadline.Value);
             if (request.IsActive.HasValue)
                 tournament.IsActive = request.IsActive.Value;
             if (request.Venue != null)
@@ -226,26 +249,34 @@ public class TournamentService : ITournamentService
 
             if (request.Tracks != null)
             {
-                if (request.Tracks.Count == 0)
+                // Chuẩn hoá trước khi so sánh với tournament.StartDate/EndDate (đọc từ DB) —
+                // so DateTime khác Kind chỉ so ticks nên sẽ lệch đúng bằng offset múi giờ.
+                var reqTracks = request.Tracks
+                    .Select(x => new { x.TrackId, From = ToWallClock(x.AvailableFrom), To = ToWallClock(x.AvailableTo) })
+                    .ToList();
+                var tourStart = ToWallClock(tournament.StartDate);
+                var tourEnd = ToWallClock(tournament.EndDate);
+
+                if (reqTracks.Count == 0)
                     return ServiceResult<TournamentResponse>.Fail(400, "Vui lòng thêm ít nhất một sân đấu cho giải.");
-                if (request.Tracks.GroupBy(x => x.TrackId).Any(g => g.Count() > 1))
+                if (reqTracks.GroupBy(x => x.TrackId).Any(g => g.Count() > 1))
                     return ServiceResult<TournamentResponse>.Fail(400, "Một sân đấu chỉ được thêm một lần vào giải.");
-                if (request.Tracks.Any(x => x.AvailableFrom >= x.AvailableTo || x.AvailableFrom < tournament.StartDate || x.AvailableTo > tournament.EndDate))
+                if (reqTracks.Any(x => x.From >= x.To || x.From < tourStart || x.To > tourEnd))
                     return ServiceResult<TournamentResponse>.Fail(400, "Khung giờ của sân phải nằm trong thời gian diễn ra giải.");
-                var trackIds = request.Tracks.Select(x => x.TrackId).ToList();
+                var trackIds = reqTracks.Select(x => x.TrackId).ToList();
                 if (await _db.Tracks.CountAsync(x => trackIds.Contains(x.Id)) != trackIds.Count)
                     return ServiceResult<TournamentResponse>.Fail(400, "Có sân đấu không tồn tại.");
 
                 await _db.TournamentTracks.Where(x => x.TournamentId == id).ExecuteDeleteAsync();
-                foreach (var item in request.Tracks)
+                foreach (var item in reqTracks)
                 {
                     _db.TournamentTracks.Add(new TournamentTrack
                     {
                         Id = Guid.NewGuid(),
                         TournamentId = id,
                         TrackId = item.TrackId,
-                        AvailableFrom = item.AvailableFrom,
-                        AvailableTo = item.AvailableTo
+                        AvailableFrom = item.From,
+                        AvailableTo = item.To
                     });
                 }
             }

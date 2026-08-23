@@ -65,11 +65,26 @@ function RaceForm({ tournamentId, tournamentName, tournamentStartDate, tournamen
   };
 
   // Khung giờ sân đấu được phép dùng trong giải (TournamentTrack.AvailableFrom/To)
+  //
+  // QUAN TRỌNG: BE gửi giờ tường (wall-clock, Kind=Unspecified) — cùng hệ quy chiếu
+  // với giá trị admin nhập vào input datetime-local và với chuỗi FE gửi lên khi tạo.
+  // Nếu đưa qua new Date() rồi trừ getTimezoneOffset() thì chuỗi không-offset sẽ bị
+  // trình duyệt hiểu là giờ máy và dịch đi, khiến hint hiển thị một đằng còn BE
+  // kiểm tra một nẻo. Vì vậy ở đây chỉ cắt chuỗi, không đổi múi giờ.
+  const toWallClock = (v) => {
+    if (!v) return "";
+    const s = String(v);
+    // "2026-08-28T07:25:00" / "...+07:00" / "...Z" → "2026-08-28T07:25"
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2})/);
+    if (m) return `${m[1]}T${m[2]}`;
+    return toLocal(s);
+  };
+
   const trackWindow = (() => {
     const t = tracks.find((x) => (x.trackId ?? x.TrackId) === form.trackId);
     if (!t) return { from: "", to: "", label: "", toLabel: "" };
-    const from = toLocal(t.availableFrom ?? t.AvailableFrom);
-    const to = toLocal(t.availableTo ?? t.AvailableTo);
+    const from = toWallClock(t.availableFrom ?? t.AvailableFrom);
+    const to = toWallClock(t.availableTo ?? t.AvailableTo);
     const pretty = (v) => v ? v.replace("T", " ") : "";
     return { from, to, label: from && to ? `${pretty(from)} → ${pretty(to)}` : "", toLabel: pretty(to) };
   })();
