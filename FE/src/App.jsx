@@ -196,6 +196,7 @@ function AppLayout() {
               <Route path="/admin/race-results" element={<AdminPage />} />
               <Route path="/admin/horses" element={<AdminPage />} />
               <Route path="/admin/referees" element={<AdminPage />} />
+              <Route path="/admin/reports" element={<AdminPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
