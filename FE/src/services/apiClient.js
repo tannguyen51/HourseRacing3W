@@ -10,6 +10,35 @@ export const resolveApiUrl = (url) => {
   return `${baseUrl}${url.startsWith("/") ? "" : "/"}${url}`;
 };
 
+// Backend trả hai loại mốc thời gian cùng một dạng chuỗi không kèm múi giờ.
+//
+// - Mốc do hệ thống ghi (createdAt, updatedAt, actualStartTime…) lấy từ
+//   DateTime.UtcNow nên là UTC thật, cần thêm 'Z' để trình duyệt đổi về giờ máy.
+// - Mốc lịch do người dùng nhập (scheduledAt, startDate…) được lưu nguyên giờ
+//   tường — xem ToWallClock trong RaceManagementService. Thêm 'Z' vào nhóm này
+//   khiến trình duyệt cộng thêm offset, làm giờ đua hiển thị lệch 7 tiếng.
+//
+// So khớp bằng chữ thường vì backend trả cả camelCase lẫn PascalCase.
+const WALL_CLOCK_DATE_FIELDS = new Set([
+  "scheduledat",
+  "scheduledendat",
+  "scheduledstartdate",
+  "scheduledenddate",
+  "startdate",
+  "enddate",
+  "registrationdeadline",
+  "availablefrom",
+  "availableto",
+  "dateofbirth",
+  "licenseexpirydate",
+  "expectedrecoverydate",
+  "actualstartdate",
+  "actualenddate",
+  "racedate",
+]);
+
+const DATETIME_WITHOUT_TIMEZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/;
+
 const getAuthToken = () => {
   const token = localStorage.getItem("authToken");
   if (!token) return null;
@@ -127,9 +156,12 @@ export async function request(path, options = {}) {
   if (contentType && contentType.includes("application/json")) {
     const text = await response.text();
     data = JSON.parse(text, (key, value) => {
-      // Tự động thêm 'Z' vào các chuỗi ngày giờ trả về từ backend (nếu bị thiếu timezone)
-      // để đảm bảo trình duyệt hiểu đây là giờ UTC, tránh lỗi lệch 7 tiếng.
-      if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(value)) {
+      // Chuỗi ngày giờ thiếu múi giờ: thêm 'Z' cho mốc UTC của hệ thống, giữ
+      // nguyên cho mốc lịch giờ tường (xem WALL_CLOCK_DATE_FIELDS ở đầu file).
+      if (typeof value === "string" && DATETIME_WITHOUT_TIMEZONE.test(value)) {
+        if (WALL_CLOCK_DATE_FIELDS.has(String(key).toLowerCase())) {
+          return value;
+        }
         return value + "Z";
       }
       return value;
