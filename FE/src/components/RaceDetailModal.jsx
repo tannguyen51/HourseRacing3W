@@ -136,7 +136,10 @@ export default function RaceDetailModal({ race, onClose, onEdit, onChanged, setM
   const controls = [];
   if (st === "scheduled") controls.push({ label: "Mở đăng ký", style: { bg: "#047857" }, onClick: () => runAction(`/api/races/management/${raceId}/open-registration`, "Đã mở đăng ký!") });
   if (st === "registrationopen") controls.push({ label: "Đóng đăng ký", style: { bg: "#475569" }, onClick: () => runAction(`/api/races/management/${raceId}/close-registration`, "Đã đóng đăng ký!") });
-  if (st === "registrationclosed") controls.push({ label: "Bắt đầu", disabled: !hasConfirmedReferee, style: { bg: "#e6a54a" }, title: hasConfirmedReferee ? undefined : "Cần ít nhất một trọng tài xác nhận", onClick: () => runAction(`/api/races/management/${raceId}/start`, "Đã bắt đầu!") });
+  if (st === "registrationclosed") {
+    controls.push({ label: "Mở lại đăng ký", style: { bg: "#047857" }, onClick: () => runAction(`/api/races/management/${raceId}/open-registration`, "Đã mở lại đăng ký!") });
+    controls.push({ label: "Bắt đầu", disabled: !hasConfirmedReferee, style: { bg: "#e6a54a" }, title: hasConfirmedReferee ? undefined : "Cần ít nhất một trọng tài xác nhận", onClick: () => runAction(`/api/races/management/${raceId}/start`, "Đã bắt đầu!") });
+  }
   if (st === "resultpendingapproval") {
     controls.push({ label: "Duyệt KQ", style: { bg: "#1a7d1a" }, onClick: async () => { if (!window.confirm("Duyệt kết quả này? Sau khi duyệt bạn có thể kết thúc cuộc đua.")) return; runAction(`/api/admin/races/${raceId}/approve-result`, "Đã duyệt kết quả!"); } });
     controls.push({ label: "Từ chối", style: { bg: "#c41e1e" }, onClick: async () => { const reason = window.prompt("Lý do từ chối:"); if (!reason) return; try { await request(`/api/admin/races/${raceId}/reject-result`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason }) }); setMessage("Đã từ chối kết quả."); await load(); onChanged?.(); } catch (err) { setMessage(err.message); } } });

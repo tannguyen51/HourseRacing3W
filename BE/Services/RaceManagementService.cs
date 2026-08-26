@@ -606,7 +606,7 @@ public class RaceManagementService : IRaceManagementService
             if (race == null)
                 return ServiceResult<bool>.Fail(404, "Không tìm thấy cuộc đua");
 
-            if (race.Status != RaceStatus.Scheduled)
+            if (race.Status != RaceStatus.Scheduled && race.Status != RaceStatus.RegistrationClosed)
                 return ServiceResult<bool>.Fail(400, $"Không thể mở đăng ký cho cuộc đua với trạng thái '{race.Status}'.");
 
             race.Status = RaceStatus.RegistrationOpen;
